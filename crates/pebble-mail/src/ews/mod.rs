@@ -5,3 +5,4 @@
 //! complete its handshake on a single keep-alive connection.
 
 pub mod auth;
+pub mod probe;

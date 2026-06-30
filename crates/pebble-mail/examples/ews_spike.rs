@@ -139,6 +139,10 @@ async fn run_ntlm(
 
     // --- Step 2: read the server Challenge (Type 2) from the WWW-Authenticate
     // header of the 401 response. ---
+    // TODO(phase1): iterate all WWW-Authenticate headers and match the NTLM
+    // scheme specifically. Real IIS may return multiple WWW-Authenticate headers
+    // (e.g. `Negotiate` then `NTLM`); `.get()` only returns the first, which may
+    // not be the NTLM one.
     let challenge_b64 = resp
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
@@ -188,10 +192,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw_user = env::var("EWS_USER").map_err(|_| "EWS_USER is required")?;
     let pass = env::var("EWS_PASS").map_err(|_| "EWS_PASS is required")?;
     let auth_mode = env::var("EWS_AUTH").unwrap_or_else(|_| "basic".to_owned());
-    let insecure = matches!(
-        env::var("EWS_INSECURE").as_deref(),
-        Ok("1") | Ok("true") | Ok("TRUE")
-    );
+    // Case-insensitive so the safe pattern is the one copied into Phase 1:
+    // accept "1", "true", "True", "TRUE", "yes", etc.
+    let insecure = env::var("EWS_INSECURE")
+        .map(|v| {
+            let v = v.trim();
+            v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes")
+        })
+        .unwrap_or(false);
 
     let client = build_client(insecure);
     let (domain, user) = split_domain_user(&raw_user);
