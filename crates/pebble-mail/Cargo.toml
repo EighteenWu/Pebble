@@ -28,3 +28,4 @@ rand = "0.8"
 ews = "0.1"
 quick-xml = { version = "0.31", features = ["serialize"] }
 ntlmclient = "0.2"
+base64 = "0.22"
