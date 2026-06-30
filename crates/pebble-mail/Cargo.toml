@@ -25,3 +25,6 @@ lettre = { workspace = true }
 reqwest = { workspace = true }
 tokio-socks = { workspace = true }
 rand = "0.8"
+ews = "0.1"
+quick-xml = { version = "0.31", features = ["serialize"] }
+ntlmclient = "0.2"
