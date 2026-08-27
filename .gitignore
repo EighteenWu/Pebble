@@ -6,6 +6,7 @@ target/
 dist/
 docs/
 .worktrees/
+release-artifacts/
 
 # Environment / secrets
 .env
