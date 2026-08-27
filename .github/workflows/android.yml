@@ -34,19 +34,45 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # setup-android@v3 passes `packages` as a single sdkmanager argument list.
+      # A YAML multiline block becomes one package name with embedded newlines
+      # (`Failed to find package 'platform-tools\nplatforms;android-34...'`).
+      # Keep this a space-separated string. Versions match Gradle compileSdk 36.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
-            ndk;27.2.12479018
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
+          packages: platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018
+
+      - name: Export NDK location for Tauri
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "$sdk_root" ]]; then
+            echo "ANDROID_SDK_ROOT / ANDROID_HOME is not set on the runner" >&2
+            env | sort
+            exit 1
+          fi
+          ndk_dir="${sdk_root}/ndk/27.2.12479018"
+          if [[ ! -d "$ndk_dir" ]]; then
+            echo "NDK directory missing: $ndk_dir" >&2
+            ls -la "${sdk_root}/ndk" || true
+            exit 1
+          fi
+          {
+            echo "ANDROID_HOME=${sdk_root}"
+            echo "ANDROID_SDK_ROOT=${sdk_root}"
+            echo "NDK_HOME=${ndk_dir}"
+            echo "ANDROID_NDK_HOME=${ndk_dir}"
+          } >> "$GITHUB_ENV"
+          echo "Using SDK=${sdk_root}"
+          echo "Using NDK=${ndk_dir}"
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
@@ -60,10 +86,7 @@ jobs:
           cp src-tauri/android-support/*.kt src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
 
       - name: Build Android APK
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-        run: pnpm exec tauri android build --apk --target aarch64 --ci
+        run: pnpm exec tauri android build --debug --apk --target aarch64 --ci
 
       - name: Collect APK artifacts
         run: |

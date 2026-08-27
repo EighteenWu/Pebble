@@ -59,4 +59,21 @@ describe("Tauri Android config", () => {
     const gradle = readFileSync(resolve(androidRoot, "app", "build.gradle.kts"), "utf8");
     expect(gradle).toContain('rootDirRel = "../../../../"');
   });
+
+  it("passes setup-android packages as a space-separated string", () => {
+    const workflow = readFileSync(
+      resolve(process.cwd(), ".github", "workflows", "android.yml"),
+      "utf8",
+    );
+    const packagesLine = workflow
+      .split("\n")
+      .find((line) => line.includes("packages:"));
+
+    expect(packagesLine).toBeTruthy();
+    expect(packagesLine).toMatch(
+      /packages:\s+platform-tools platforms;android-36 build-tools;36\.0\.0 ndk;27\.2\.12479018\s*$/,
+    );
+    expect(workflow).toContain("tauri android build --debug --apk --target aarch64 --ci");
+    expect(workflow).not.toContain("${{ env.ANDROID_NDK_HOME }}");
+  });
 });

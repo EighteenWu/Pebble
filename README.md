@@ -170,7 +170,7 @@ macOS bundles are unsigned unless you provide your own signing setup.
 
 Phase 2 ships a sideloadable Android APK. It is not a Play Store / AAB release.
 
-Prerequisites: Rust stable, JDK 17+, Android SDK platform 34, NDK 27, and the Android Rust targets.
+Prerequisites: Rust stable, JDK 17+, Android SDK platform 36, NDK 27, and the Android Rust targets.
 
 Device DEK storage uses Android Keystore through a JNI helper (`PebbleKeystore`). The desktop `keyring` 3 crate has no Android backend. `android-native-keyring-store` 1.x requires Rust 1.88 / edition 2024 and cannot be resolved by this workspace's current Cargo.
 
