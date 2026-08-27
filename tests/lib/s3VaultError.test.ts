@@ -9,11 +9,10 @@ describe("s3VaultError", () => {
   });
 
   it("returns the passphrase hint instead of the raw crypto error", () => {
-    const message = formatS3VaultError(
-      new Error("Decryption failed: aead::Error"),
-      (key, fallback) => (typeof fallback === "string" ? fallback : key),
-      "cloudSync.s3RestoreFailed",
-    );
+    const message = formatS3VaultError(new Error("Decryption failed: aead::Error"), {
+      mismatch: "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
+      wrap: (raw) => `Cloud restore failed: ${raw}`,
+    });
     expect(message).toBe("同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。");
     expect(message).not.toContain("aead");
   });

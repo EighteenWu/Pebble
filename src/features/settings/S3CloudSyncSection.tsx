@@ -135,6 +135,17 @@ export default function S3CloudSyncSection() {
       .finally(() => setLoaded(true));
   }, []);
 
+  const passphraseMismatch = t(
+    "cloudSync.s3PassphraseMismatch",
+    "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
+  );
+  function vaultError(err: unknown, wrapKey: string) {
+    return formatS3VaultError(err, {
+      mismatch: passphraseMismatch,
+      wrap: (raw) => t(wrapKey, { error: raw }),
+    });
+  }
+
   const busy = testing || saving || syncing || restoring;
   const credentialsReady = Boolean(
     (config.provider !== "r2" || config.endpoint.trim()) &&
@@ -239,7 +250,7 @@ export default function S3CloudSyncSection() {
       await saveS3SyncConfig({ ...config, enabled: config.enabled });
       applyResult(await syncS3Vault());
     } catch (err: unknown) {
-      const message = formatS3VaultError(err, t, "cloudSync.s3SyncFailed");
+      const message = vaultError(err, "cloudSync.s3SyncFailed");
       setStatusMsg(message);
       setStatusType("error");
     } finally {
@@ -254,7 +265,7 @@ export default function S3CloudSyncSection() {
       await saveS3SyncConfig(config);
       applyResult(await restoreS3Vault());
     } catch (err: unknown) {
-      const message = formatS3VaultError(err, t, "cloudSync.s3RestoreFailed");
+      const message = vaultError(err, "cloudSync.s3RestoreFailed");
       setStatusMsg(message);
       setStatusType("error");
       addToast({ message, type: "error" });
@@ -269,7 +280,7 @@ export default function S3CloudSyncSection() {
     try {
       applyResult(await resolveS3VaultConflict(choice));
     } catch (err: unknown) {
-      setStatusMsg(formatS3VaultError(err, t, "cloudSync.s3SyncFailed"));
+      setStatusMsg(vaultError(err, "cloudSync.s3SyncFailed"));
       setStatusType("error");
     } finally {
       setSyncing(false);

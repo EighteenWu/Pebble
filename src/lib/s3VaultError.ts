@@ -7,15 +7,9 @@ export function isS3DecryptionError(message: string): boolean {
 
 export function formatS3VaultError(
   err: unknown,
-  t: (key: string, fallback?: string | Record<string, unknown>) => string,
-  wrappedKey: string,
+  messages: { mismatch: string; wrap: (raw: string) => string },
 ): string {
   const raw = extractErrorMessage(err);
-  if (isS3DecryptionError(raw)) {
-    return t(
-      "cloudSync.s3PassphraseMismatch",
-      "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
-    );
-  }
-  return t(wrappedKey, { error: raw });
+  if (isS3DecryptionError(raw)) return messages.mismatch;
+  return messages.wrap(raw);
 }
