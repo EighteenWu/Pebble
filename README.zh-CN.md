@@ -174,7 +174,7 @@ sudo xattr -cr /Applications/Pebble.app
 
 第二阶段提供可侧载的 Android APK，不是 Play Store / AAB 发布。
 
-需要 Rust stable、JDK 17+、Android SDK platform 34、NDK 27，以及 Android Rust target。设备 DEK 通过 JNI 助手 `PebbleKeystore` 写入 Android Keystore；桌面 `keyring` 3 没有 Android 后端。
+需要 Rust stable、JDK 17+、Android SDK platform 36、NDK 27，以及 Android Rust target。设备 DEK 通过 JNI 助手 `PebbleKeystore` 写入 Android Keystore；桌面 `keyring` 3 没有 Android 后端。
 
 ```bash
 pnpm install
