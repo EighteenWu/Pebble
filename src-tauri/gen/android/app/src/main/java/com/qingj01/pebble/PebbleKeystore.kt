@@ -13,6 +13,10 @@ import javax.crypto.spec.GCMParameterSpec
 /**
  * Wraps the Pebble DEK with an AES/GCM key kept in Android Keystore and
  * persists the ciphertext in private SharedPreferences.
+ *
+ * Rust loads this class through [Context.getClassLoader] during Tauri
+ * setup(). JNI FindClass on a native thread uses the system classloader
+ * and cannot see this app package.
  */
 object PebbleKeystore {
     private const val PREFS = "pebble_dek_store"

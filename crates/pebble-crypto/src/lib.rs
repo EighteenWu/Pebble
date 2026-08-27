@@ -186,6 +186,18 @@ mod tests {
     }
 
     #[test]
+    fn android_keystore_loads_helper_via_app_classloader() {
+        let source = include_str!("android_keystore.rs");
+        assert!(source.contains("getClassLoader"));
+        assert!(source.contains("loadClass"));
+        assert!(source.contains("com.qingj01.pebble.PebbleKeystore"));
+        assert!(
+            !source.contains("find_class"),
+            "FindClass on a native thread uses the system classloader and cannot see the app package"
+        );
+    }
+
+    #[test]
     #[ignore] // Requires OS credential store access
     fn test_crypto_service_init() {
         let service = CryptoService::init();

@@ -52,12 +52,93 @@ describe("Tauri Android config", () => {
     );
     const manifest = resolve(androidRoot, "app", "src", "main", "AndroidManifest.xml");
     expect(existsSync(androidRoot)).toBe(true);
+    const intents = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleIntents.kt",
+    );
     expect(existsSync(keystore)).toBe(true);
+    expect(existsSync(intents)).toBe(true);
     expect(readFileSync(keystore, "utf8")).toContain("AndroidKeyStore");
+    expect(readFileSync(intents, "utf8")).toContain("showStartupError");
     expect(readFileSync(manifest, "utf8")).toContain("POST_NOTIFICATIONS");
+    expect(readFileSync(manifest, "utf8")).toContain('android:name=".PebbleApp"');
+    expect(readFileSync(manifest, "utf8")).toContain("PebbleLaunchActivity");
+
+    const pebbleCrash = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleCrash.kt",
+    );
+    const pebbleApp = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleApp.kt",
+    );
+    const launch = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleLaunchActivity.kt",
+    );
+    const mainActivity = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "MainActivity.kt",
+    );
+    expect(existsSync(pebbleApp)).toBe(true);
+    expect(existsSync(pebbleCrash)).toBe(true);
+    expect(existsSync(launch)).toBe(true);
+    expect(readFileSync(pebbleApp, "utf8")).toContain("Pebble starting");
+    expect(readFileSync(pebbleApp, "utf8")).toContain("setDefaultUncaughtExceptionHandler");
+    expect(readFileSync(pebbleCrash, "utf8")).toContain("pebble-crash.log");
+    expect(readFileSync(launch, "utf8")).toContain("PebbleLaunchActivity");
+    expect(readFileSync(launch, "utf8")).toContain("MainActivity");
+
+    const mainSource = readFileSync(mainActivity, "utf8");
+    const superOnCreate = mainSource.indexOf("super.onCreate(savedInstanceState)");
+    const edgeToEdge = mainSource.lastIndexOf("enableEdgeToEdge()");
+    expect(superOnCreate).toBeGreaterThan(-1);
+    expect(edgeToEdge).toBeGreaterThan(-1);
+    expect(superOnCreate).toBeLessThan(edgeToEdge);
+    expect(mainSource).toContain("PebbleCrash");
 
     const gradle = readFileSync(resolve(androidRoot, "app", "build.gradle.kts"), "utf8");
     expect(gradle).toContain('rootDirRel = "../../../../"');
+    expect(gradle).toContain('debugSymbolLevel = "none"');
+    expect(gradle).toContain("useLegacyPackaging = false");
+    expect(gradle).toContain('signingConfig = signingConfigs.getByName("debug")');
+    expect(gradle).not.toContain("keepDebugSymbols");
+    expect(readFileSync(keystore, "utf8")).toContain("getClassLoader");
   });
 
   it("passes setup-android packages as a space-separated string", () => {
@@ -73,7 +154,36 @@ describe("Tauri Android config", () => {
     expect(packagesLine).toMatch(
       /packages:\s+platform-tools platforms;android-36 build-tools;36\.0\.0 ndk;27\.2\.12479018\s*$/,
     );
-    expect(workflow).toContain("tauri android build --debug --apk --target aarch64 --ci");
+    expect(workflow).toContain("tauri android build --apk --target aarch64 --ci");
+    expect(workflow).not.toContain("tauri android build --debug");
+    expect(workflow).toContain("ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON");
+    expect(workflow).toContain("scripts/verify-android-apk.sh");
     expect(workflow).not.toContain("${{ env.ANDROID_NDK_HOME }}");
+  });
+
+  it("aligns Android native libs to 16 KB pages", () => {
+    const cargoConfig = readFileSync(resolve(process.cwd(), ".cargo", "config.toml"), "utf8");
+    const buildRs = readFileSync(resolve(process.cwd(), "src-tauri", "build.rs"), "utf8");
+    const verify = readFileSync(resolve(process.cwd(), "scripts", "verify-android-apk.sh"), "utf8");
+    const keystoreRs = readFileSync(
+      resolve(process.cwd(), "crates", "pebble-crypto", "src", "android_keystore.rs"),
+      "utf8",
+    );
+    const jni = readFileSync(resolve(process.cwd(), "src-tauri", "src", "android_jni.rs"), "utf8");
+
+    expect(cargoConfig).toContain("max-page-size=16384");
+    expect(cargoConfig).toContain("common-page-size=16384");
+    expect(cargoConfig).toContain("panic=unwind");
+    expect(buildRs).toContain("max-page-size=16384");
+    expect(verify).toContain("16384");
+    expect(verify).toContain("llvm-readelf");
+    expect(verify).toContain("pending");
+    expect(verify).toContain("two lines");
+    expect(verify).toContain("app-universal-release.apk");
+    expect(keystoreRs).toContain("getClassLoader");
+    expect(keystoreRs).toContain("loadClass");
+    expect(keystoreRs).not.toContain("find_class");
+    expect(jni).toContain("getClassLoader");
+    expect(jni).toContain("loadClass");
   });
 });

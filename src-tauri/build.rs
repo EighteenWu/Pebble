@@ -1,4 +1,5 @@
 fn main() {
+    emit_android_page_size_link_args();
     for key in [
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
@@ -8,6 +9,27 @@ fn main() {
         emit_env_from_dotenv("../.env", key);
     }
     tauri_build::build()
+}
+
+/// Android 15 / Snapdragon 8 Elite devices use 16 KB pages. NDK 27 still
+/// emits 4 KB ELF LOAD alignment unless the linker is told otherwise.
+/// Unaligned Rust `.so` files crash in `dlopen` with no Java dialog.
+fn emit_android_page_size_link_args() {
+    let flags = android_page_size_link_args();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
+    for flag in flags {
+        println!("cargo:rustc-link-arg={flag}");
+    }
+}
+
+fn android_page_size_link_args() -> &'static [&'static str] {
+    &[
+        "-Wl,-z,max-page-size=16384",
+        "-Wl,-z,common-page-size=16384",
+    ]
 }
 
 fn emit_env_from_dotenv(path: &str, key: &str) {

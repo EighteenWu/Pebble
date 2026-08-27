@@ -172,7 +172,9 @@ Phase 2 ships a sideloadable Android APK. It is not a Play Store / AAB release.
 
 Prerequisites: Rust stable, JDK 17+, Android SDK platform 36, NDK 27, and the Android Rust targets.
 
-Device DEK storage uses Android Keystore through a JNI helper (`PebbleKeystore`). The desktop `keyring` 3 crate has no Android backend. `android-native-keyring-store` 1.x requires Rust 1.88 / edition 2024 and cannot be resolved by this workspace's current Cargo.
+Device DEK storage uses Android Keystore through a JNI helper (`PebbleKeystore` in the `com.qingj01.pebble` app package). Tauri setup loads that class through the app `ClassLoader`. JNI `FindClass` on a native thread uses the system classloader and cannot see the app package.
+
+The CI artifact is a **debug-signed, release-optimized** aarch64 APK (`pebble-android-apk` / `app-universal-release.apk`). The native `.so` is stripped and 16 KB page-aligned (`llvm-readelf -l` LOAD Align `0x4000` / 16384). That is required on Android 15 16 KB-page devices such as Xiaomi 15 Ultra (Snapdragon 8 Elite). An unaligned or unstripped `tauri android build --debug` APK force-closed immediately with no dialog and extracted to ~300 MB on device (zip ~90 MB) because of debug symbols.
 
 ```bash
 pnpm install
@@ -181,18 +183,20 @@ pnpm install
 # then copy src-tauri/android-support/*.kt into
 # src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
 pnpm dev:android          # device or emulator
-pnpm build:android        # APKs under src-tauri/gen/android/
+pnpm build:android        # debug-signed release APKs under src-tauri/gen/android/
 # faster phone sideload: pnpm exec tauri android build --apk --target aarch64
 ```
 
-Sideload:
+Sideload the pre-release APK (built on the Cursor cloud VM, not Actions):
+
+1. Download [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-xiaomi/app-universal-release.apk) from the `android-sideload-xiaomi` pre-release.
+2. On the phone: allow install from the browser/file manager, then open the APK.
+3. You should see a **Pebble starting** toast. If it still dies, reopen the app — the launch screen shows `pebble-crash.log` (also under `Android/data/com.qingj01.pebble/files/`).
 
 ```bash
-# Debug-signed APK (easiest to sideload):
-pnpm exec tauri android build --debug --apk --target aarch64
-adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-
-# Release APK from `pnpm build:android` is unsigned. Sign it before install, or use the debug build above.
+# Same artifact locally (release Rust, debug keystore, aarch64 only):
+pnpm exec tauri android build --apk --target aarch64
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
 ```
 
 What works on Android today: IMAP (and POP3) add-account, open-app sync, read, send, and in-app / system test notifications. Desktop S3 vault sync and WebDAV stay on the desktop build.
