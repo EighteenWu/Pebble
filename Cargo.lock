@@ -3571,8 +3571,10 @@ dependencies = [
 name = "pebble"
 version = "0.1.4"
 dependencies = [
+ "jni",
  "lettre",
  "mac-notification-sys",
+ "ndk-context",
  "notify-rust",
  "opener",
  "pebble-core",
@@ -3620,7 +3622,9 @@ version = "0.1.4"
 dependencies = [
  "aes-gcm",
  "hex",
+ "jni",
  "keyring",
+ "ndk-context",
  "pebble-core",
  "rand 0.8.5",
  "ring",

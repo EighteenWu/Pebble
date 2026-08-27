@@ -25,6 +25,7 @@ export default function ToastContainer() {
     <div
       role="region"
       aria-label={t("common.notifications", "Notifications")}
+      className="toast-stack"
       style={{
         position: "fixed",
         bottom: "56px",

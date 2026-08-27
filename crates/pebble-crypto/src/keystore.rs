@@ -3,48 +3,94 @@ use rand::RngCore;
 use tracing::{info, warn};
 use zeroize::Zeroizing;
 
-const SERVICE_NAME: &str = "com.pebble.email";
-const KEY_ENTRY: &str = "master-dek";
+pub(crate) const SERVICE_NAME: &str = "com.pebble.email";
+pub(crate) const KEY_ENTRY: &str = "master-dek";
 const DEK_LEN: usize = 32;
 
 pub struct KeyStore;
 
-trait DekCredential {
-    fn get_secret(&self) -> std::result::Result<Vec<u8>, keyring::Error>;
-    fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), keyring::Error>;
+#[derive(Debug)]
+pub(crate) enum DekStoreError {
+    NoEntry,
+    Other(String),
 }
 
+impl std::fmt::Display for DekStoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoEntry => write!(f, "no credential entry"),
+            Self::Other(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+pub(crate) trait DekCredential {
+    fn get_secret(&self) -> std::result::Result<Vec<u8>, DekStoreError>;
+    fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), DekStoreError>;
+}
+
+#[cfg(not(target_os = "android"))]
 impl DekCredential for keyring::Entry {
-    fn get_secret(&self) -> std::result::Result<Vec<u8>, keyring::Error> {
-        keyring::Entry::get_secret(self)
+    fn get_secret(&self) -> std::result::Result<Vec<u8>, DekStoreError> {
+        keyring::Entry::get_secret(self).map_err(map_keyring_error)
     }
 
-    fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), keyring::Error> {
-        keyring::Entry::set_secret(self, secret)
+    fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), DekStoreError> {
+        keyring::Entry::set_secret(self, secret).map_err(map_keyring_error)
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn map_keyring_error(error: keyring::Error) -> DekStoreError {
+    match error {
+        keyring::Error::NoEntry => DekStoreError::NoEntry,
+        other => DekStoreError::Other(other.to_string()),
     }
 }
 
 impl KeyStore {
     /// Get or create the Data Encryption Key from the OS credential store.
     ///
+    /// Desktop uses the platform keyring. Android uses Android Keystore via a
+    /// JNI helper (`com.qingj01.pebble.PebbleKeystore`). The desktop `keyring`
+    /// crate has no Android backend; `android-native-keyring-store` 1.x needs
+    /// Rust 1.88 / edition 2024 and cannot be resolved by this workspace.
+    ///
     /// The raw 32-byte key is hex-encoded before storing so it can round-trip
     /// safely through string-based keychain backends and survive kernel-keyring
     /// serialisation.
     pub fn get_or_create_dek() -> Result<Zeroizing<[u8; DEK_LEN]>> {
-        let entry = keyring::Entry::new(SERVICE_NAME, KEY_ENTRY)
-            .map_err(|e| PebbleError::Auth(format!("Keyring entry error: {e}")))?;
+        #[cfg(target_os = "android")]
+        {
+            return get_or_create_dek_from_credential(
+                &crate::android_keystore::AndroidKeystoreCredential,
+            );
+        }
 
-        get_or_create_dek_from_credential(&entry)
+        #[cfg(not(target_os = "android"))]
+        {
+            let entry = keyring::Entry::new(SERVICE_NAME, KEY_ENTRY)
+                .map_err(|e| PebbleError::Auth(format!("Keyring entry error: {e}")))?;
+            get_or_create_dek_from_credential(&entry)
+        }
     }
 
     /// Delete the DEK from the OS credential store.
     pub fn delete_dek() -> Result<()> {
-        let entry = keyring::Entry::new(SERVICE_NAME, KEY_ENTRY)
-            .map_err(|e| PebbleError::Auth(format!("Keyring entry error: {e}")))?;
-        match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()), // Already gone
-            Err(e) => Err(PebbleError::Auth(format!("Failed to delete DEK: {e}"))),
+        #[cfg(target_os = "android")]
+        {
+            return crate::android_keystore::delete_dek();
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            let entry = keyring::Entry::new(SERVICE_NAME, KEY_ENTRY)
+                .map_err(|e| PebbleError::Auth(format!("Keyring entry error: {e}")))?;
+            match entry.delete_credential() {
+                Ok(()) => Ok(()),
+                Err(keyring::Error::NoEntry) => Ok(()),
+                Err(e) => Err(PebbleError::Auth(format!("Failed to delete DEK: {e}"))),
+            }
         }
     }
 }
@@ -86,7 +132,7 @@ fn get_or_create_dek_from_credential(
                 secret.len()
             )))
         }
-        Err(keyring::Error::NoEntry) => {
+        Err(DekStoreError::NoEntry) => {
             info!("No DEK found, generating new one");
             generate_and_store_dek(credential)
         }
@@ -135,11 +181,11 @@ mod tests {
     }
 
     impl DekCredential for FakeCredential {
-        fn get_secret(&self) -> std::result::Result<Vec<u8>, keyring::Error> {
-            self.secret.borrow().clone().ok_or(keyring::Error::NoEntry)
+        fn get_secret(&self) -> std::result::Result<Vec<u8>, DekStoreError> {
+            self.secret.borrow().clone().ok_or(DekStoreError::NoEntry)
         }
 
-        fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), keyring::Error> {
+        fn set_secret(&self, secret: &[u8]) -> std::result::Result<(), DekStoreError> {
             self.writes.set(self.writes.get() + 1);
             self.secret.borrow_mut().replace(secret.to_vec());
             Ok(())

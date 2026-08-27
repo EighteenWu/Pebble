@@ -131,6 +131,9 @@ export function applyThemeToDom(theme: Theme) {
 
 interface UIState {
   sidebarCollapsed: boolean;
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
+  closeMobileNav: () => void;
   activeView: ActiveView;
   theme: Theme;
   backgroundImage: BackgroundImageSettings | null;
@@ -178,6 +181,9 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarCollapsed: false,
+  mobileNavOpen: false,
+  setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
+  closeMobileNav: () => set({ mobileNavOpen: false }),
   activeView: "inbox",
   theme: (profileLocalStorage.getItem("pebble-theme") as Theme) || "light",
   backgroundImage: initialBackgroundImage,

@@ -551,6 +551,7 @@
     "signInGoogle": "Sign in with Google",
     "signInOutlook": "Sign in with Outlook",
     "orManual": "or add account manually",
+    "oauthAndroidHint": "Gmail and Outlook buttons still need a later OAuth phase on Android. Use IMAP or POP3 for this sideload build.",
     "adding": "Adding account\u2026",
     "submit": "Add Account & Sync",
     "testConnection": "Test Connection",

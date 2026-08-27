@@ -20,7 +20,7 @@
   <a href="https://github.com/QingJ01/Pebble/releases"><img src="https://img.shields.io/github/v/release/QingJ01/Pebble?style=flat-square&color=d4714e" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/QingJ01/Pebble/actions"><img src="https://img.shields.io/github/actions/workflow/status/QingJ01/Pebble/ci.yml?style=flat-square&label=build" alt="Build"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20sideload-lightgrey?style=flat-square" alt="Platform">
 </p>
 
 ## Overview
@@ -165,6 +165,36 @@ pnpm build:linux
 Desktop bundles are written under `target/release/` and `target/release/bundle/`.
 On Linux, install the Tauri system dependencies first; `pnpm build:linux` produces AppImage, deb, and rpm packages under `target/release/bundle/`.
 macOS bundles are unsigned unless you provide your own signing setup.
+
+### Android (sideload APK)
+
+Phase 2 ships a sideloadable Android APK. It is not a Play Store / AAB release.
+
+Prerequisites: Rust stable, JDK 17+, Android SDK platform 34, NDK 27, and the Android Rust targets.
+
+Device DEK storage uses Android Keystore through a JNI helper (`PebbleKeystore`). The desktop `keyring` 3 crate has no Android backend. `android-native-keyring-store` 1.x requires Rust 1.88 / edition 2024 and cannot be resolved by this workspace's current Cargo.
+
+```bash
+pnpm install
+# src-tauri/gen/android/ is already committed. Re-run init only on a fresh tree:
+# pnpm tauri android init --ci
+# then copy src-tauri/android-support/*.kt into
+# src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
+pnpm dev:android          # device or emulator
+pnpm build:android        # APKs under src-tauri/gen/android/
+# faster phone sideload: pnpm exec tauri android build --apk --targets aarch64
+```
+
+Sideload:
+
+```bash
+adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+```
+
+What works on Android today: IMAP (and POP3) add-account, open-app sync, read, send, and in-app / system test notifications. Desktop S3 vault sync and WebDAV stay on the desktop build.
+
+What is not in this phase: Gmail/Outlook OAuth (the buttons still appear and will fail, as expected), Custom Tabs, Play Store packaging, Android S3 cloud sync, and IMAP IDLE long-poll. Use IMAP or POP3 app passwords.
+
 After copying an unsigned macOS build to `/Applications`, run the following command before opening it:
 
 ```bash
@@ -196,6 +226,8 @@ Copy `.env.example` to `.env`, then fill the provider values you need.
 | `pnpm build:windows` | Build the Windows NSIS installer. |
 | `pnpm build:macos` | Build unsigned macOS `.app` and `.dmg` bundles. |
 | `pnpm build:linux` | Build Linux `.AppImage`, `.deb`, and `.rpm` packages. |
+| `pnpm dev:android` | Run the Tauri Android app on a device or emulator. |
+| `pnpm build:android` | Build a sideload APK (not Play / AAB). |
 | `cargo test -p pebble-mail` | Run the mail crate tests. |
 | `cargo check` | Check the Rust workspace. |
 

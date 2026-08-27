@@ -1,0 +1,91 @@
+name: Android APK
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  apk:
+    name: Build sideload APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+            ndk;27.2.12479018
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Android Keystore helpers
+        run: |
+          mkdir -p src-tauri/gen/android/app/src/main/java/com/qingj01/pebble
+          cp src-tauri/android-support/*.kt src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
+
+      - name: Build Android APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+        run: pnpm exec tauri android build --apk --targets aarch64
+
+      - name: Collect APK artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          found=()
+          while IFS= read -r -d '' apk; do
+            found+=("$apk")
+            cp "$apk" "release-artifacts/$(basename "$apk")"
+          done < <(find src-tauri/gen/android -type f -name "*.apk" -print0)
+
+          if [[ "${#found[@]}" -eq 0 ]]; then
+            echo "No APK found under src-tauri/gen/android" >&2
+            find src-tauri/gen/android -type f | sort || true
+            exit 1
+          fi
+
+          ls -lh release-artifacts
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pebble-android-apk
+          path: release-artifacts/*.apk
+          if-no-files-found: error

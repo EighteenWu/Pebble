@@ -140,15 +140,24 @@ fn register_as_mail_client() -> Result<(), String> {
 
 #[tauri::command]
 pub fn sync_titlebar_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
-    use tauri::window::Color;
+    #[cfg(not(desktop))]
+    {
+        let _ = (window, theme);
+        return Ok(());
+    }
 
-    let color = match theme.as_str() {
-        "dark" => Color(0x1e, 0x1e, 0x1e, 0xff),
-        _ => Color(0xf8, 0xf7, 0xf5, 0xff),
-    };
-    window
-        .set_background_color(Some(color))
-        .map_err(|e| format!("Failed to set background color: {e}"))
+    #[cfg(desktop)]
+    {
+        use tauri::window::Color;
+
+        let color = match theme.as_str() {
+            "dark" => Color(0x1e, 0x1e, 0x1e, 0xff),
+            _ => Color(0xf8, 0xf7, 0xf5, 0xff),
+        };
+        window
+            .set_background_color(Some(color))
+            .map_err(|e| format!("Failed to set background color: {e}"))
+    }
 }
 
 #[tauri::command]
@@ -157,7 +166,19 @@ pub fn open_external_url(url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") && !url.starts_with("mailto:") {
         return Err("Only https://, http://, and mailto: URLs are permitted".to_string());
     }
-    opener::open(&url).map_err(|e| format!("Failed to open URL: {e}"))
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        opener::open(&url).map_err(|e| format!("Failed to open URL: {e}"))
+    }
+    #[cfg(target_os = "android")]
+    {
+        crate::android_open::open_url(&url)
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = url;
+        Err("Opening URLs is not supported on this platform".into())
+    }
 }
 
 #[tauri::command]

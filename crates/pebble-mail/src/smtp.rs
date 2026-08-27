@@ -10,6 +10,7 @@ use std::fmt;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::io::{AsyncRead, AsyncWrite};
+#[cfg(not(target_os = "android"))]
 use tokio_native_tls as async_native_tls;
 
 pub struct SmtpSender {
@@ -214,36 +215,47 @@ impl SmtpSender {
                         authenticate_and_send(&mut conn, &self.credentials, email).await?;
                     }
                     Err(rustls_err) => {
-                        tracing::debug!(
-                            "SMTP rustls handshake failed ({}), retrying with native-tls",
-                            rustls_err
-                        );
-                        // Reconnect SOCKS5 and try native-tls
-                        let socks_stream = tokio_socks::tcp::Socks5Stream::connect(
-                            proxy_addr.as_str(),
-                            target.as_str(),
-                        )
-                        .await
-                        .map_err(|e| {
-                            PebbleError::Network(format!("SOCKS5 reconnect failed: {e}"))
-                        })?;
-                        let native_connector =
-                            build_native_tls_connector(self.accept_invalid_certs)?;
-                        let tls_stream = native_connector
-                            .connect(&self.host, socks_stream.into_inner())
+                        #[cfg(target_os = "android")]
+                        {
+                            return Err(PebbleError::Network(format!(
+                                "SMTP TLS failed (rustls): {rustls_err}"
+                            )));
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            tracing::debug!(
+                                "SMTP rustls handshake failed ({}), retrying with native-tls",
+                                rustls_err
+                            );
+                            // Reconnect SOCKS5 and try native-tls
+                            let socks_stream = tokio_socks::tcp::Socks5Stream::connect(
+                                proxy_addr.as_str(),
+                                target.as_str(),
+                            )
                             .await
                             .map_err(|e| {
-                                PebbleError::Network(format!(
-                                    "TLS failed with both backends — rustls: {rustls_err}, native-tls: {e}"
-                                ))
+                                PebbleError::Network(format!("SOCKS5 reconnect failed: {e}"))
                             })?;
-                        let mut conn = AsyncSmtpConnection::connect_with_transport(
-                            Box::new(DebugStream(tls_stream)),
-                            &hello_name,
-                        )
-                        .await
-                        .map_err(|e| PebbleError::Network(format!("SMTP handshake failed: {e}")))?;
-                        authenticate_and_send(&mut conn, &self.credentials, email).await?;
+                            let native_connector =
+                                build_native_tls_connector(self.accept_invalid_certs)?;
+                            let tls_stream = native_connector
+                                .connect(&self.host, socks_stream.into_inner())
+                                .await
+                                .map_err(|e| {
+                                    PebbleError::Network(format!(
+                                        "TLS failed with both backends — rustls: {rustls_err}, native-tls: {e}"
+                                    ))
+                                })?;
+                            let mut conn = AsyncSmtpConnection::connect_with_transport(
+                                Box::new(DebugStream(tls_stream)),
+                                &hello_name,
+                            )
+                            .await
+                            .map_err(|e| {
+                                PebbleError::Network(format!("SMTP handshake failed: {e}"))
+                            })?;
+                            authenticate_and_send(&mut conn, &self.credentials, email).await?;
+                        }
                     }
                 }
             }
@@ -348,6 +360,7 @@ fn build_rustls_client_config(
 }
 
 /// Build a native-tls connector (OS TLS backend: SChannel/SecureTransport/OpenSSL).
+#[cfg(not(target_os = "android"))]
 fn build_native_tls_connector(
     accept_invalid_certs: bool,
 ) -> Result<async_native_tls::TlsConnector> {
@@ -522,7 +535,9 @@ fn mime_type_from_extension(ext: &str) -> ContentType {
 
 #[cfg(test)]
 mod tls_config_tests {
-    use super::{build_native_tls_connector, build_rustls_client_config};
+    #[cfg(not(target_os = "android"))]
+    use super::build_native_tls_connector;
+    use super::build_rustls_client_config;
 
     #[test]
     fn build_rustls_client_config_returns_result() {
@@ -530,6 +545,7 @@ mod tls_config_tests {
         assert!(build_rustls_client_config(true).is_ok());
     }
 
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn build_native_tls_connector_returns_result() {
         assert!(build_native_tls_connector(false).is_ok());

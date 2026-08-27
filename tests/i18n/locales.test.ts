@@ -105,6 +105,15 @@ describe("locale files", () => {
     expect(zh.privacy.trackerBlockingOff).not.toBe(en.privacy.trackerBlockingOff);
   });
 
+  it("translates Android OAuth sideload hints in English and Chinese", () => {
+    const en = readLocale("en");
+    const zh = readLocale("zh");
+
+    expect(en.accountSetup.oauthAndroidHint).toMatch(/IMAP or POP3/);
+    expect(zh.accountSetup.oauthAndroidHint).toMatch(/IMAP 或 POP3/);
+    expect(zh.accountSetup.oauthAndroidHint).not.toBe(en.accountSetup.oauthAndroidHint);
+  });
+
   it("translates TLS certificate account setup labels in English and Chinese", () => {
     const en = readLocale("en");
     const zh = readLocale("zh");

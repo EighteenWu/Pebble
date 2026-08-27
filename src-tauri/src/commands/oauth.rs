@@ -680,8 +680,36 @@ pub(crate) async fn ensure_account_oauth_auth(
 /// Starts a redirect listener, waits for the browser callback, exchanges the
 /// authorization code for tokens, encrypts and stores the tokens, and creates
 /// the account record.
+#[cfg(any(not(desktop), test))]
+pub fn oauth_unavailable_on_mobile_message(provider: &str) -> String {
+    format!(
+        "{provider} OAuth is not available on Android in this build. Add an IMAP or POP3 account instead. Gmail/Outlook sign-in needs a later Custom Tabs OAuth phase."
+    )
+}
+
 #[tauri::command]
 pub async fn complete_oauth_flow(
+    state: State<'_, AppState>,
+    provider: String,
+    email: String,
+    display_name: String,
+    proxy_host: Option<String>,
+    proxy_port: Option<u16>,
+) -> std::result::Result<Account, PebbleError> {
+    #[cfg(not(desktop))]
+    {
+        let _ = (state, email, display_name, proxy_host, proxy_port);
+        return Err(PebbleError::OAuth(oauth_unavailable_on_mobile_message(
+            &provider,
+        )));
+    }
+
+    #[cfg(desktop)]
+    complete_desktop_oauth_flow(state, provider, email, display_name, proxy_host, proxy_port).await
+}
+
+#[cfg(desktop)]
+async fn complete_desktop_oauth_flow(
     state: State<'_, AppState>,
     provider: String,
     email: String,
@@ -874,6 +902,15 @@ mod tests {
 
     fn env_lock() -> &'static Mutex<()> {
         ENV_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn oauth_mobile_message_mentions_imap_and_expected_gmail_gap() {
+        let message = oauth_unavailable_on_mobile_message("gmail");
+        assert!(message.contains("gmail"));
+        assert!(message.contains("IMAP"));
+        assert!(message.contains("POP3"));
+        assert!(message.contains("OAuth is not available on Android"));
     }
 
     #[tokio::test]

@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { useToastStore } from "@/stores/toast.store";
 import { useUIStore, type RealtimePreference } from "@/stores/ui.store";
+import { isDesktopShell } from "@/lib/platform";
 
 const REALTIME_OPTIONS: Array<{
   mode: RealtimePreference;
@@ -212,6 +213,8 @@ export default function GeneralTab() {
           : t("settings.testNotification", "Send test notification")}
       </button>
 
+      {isDesktopShell() && (
+        <>
       <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", marginTop: "32px" }}>
         {t("settings.startupBehavior", "Startup Behavior")}
       </h3>
@@ -271,6 +274,8 @@ export default function GeneralTab() {
         />
         <span>{t("settings.quitOnClose", "Quit app when window is closed")}</span>
       </label>
+        </>
+      )}
 
       <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", marginTop: "32px" }}>
         {t("settings.folderCounts", "Folder Counts")}

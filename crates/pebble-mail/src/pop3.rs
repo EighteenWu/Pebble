@@ -6,6 +6,7 @@ use std::task::{Context, Poll};
 use pebble_core::{PebbleError, Result};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 use tokio::net::TcpStream;
+#[cfg(not(target_os = "android"))]
 use tokio_native_tls as async_native_tls;
 use tracing::debug;
 
@@ -42,6 +43,7 @@ pub struct Pop3MessageRef {
 enum Pop3Stream {
     Plain(TcpStream),
     Rustls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
+    #[cfg(not(target_os = "android"))]
     NativeTls(Box<async_native_tls::TlsStream<TcpStream>>),
 }
 
@@ -54,6 +56,7 @@ impl AsyncRead for Pop3Stream {
         match &mut *self {
             Self::Plain(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::Rustls(stream) => Pin::new(stream.as_mut()).poll_read(cx, buf),
+            #[cfg(not(target_os = "android"))]
             Self::NativeTls(stream) => Pin::new(stream.as_mut()).poll_read(cx, buf),
         }
     }
@@ -68,6 +71,7 @@ impl AsyncWrite for Pop3Stream {
         match &mut *self {
             Self::Plain(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::Rustls(stream) => Pin::new(stream.as_mut()).poll_write(cx, buf),
+            #[cfg(not(target_os = "android"))]
             Self::NativeTls(stream) => Pin::new(stream.as_mut()).poll_write(cx, buf),
         }
     }
@@ -76,6 +80,7 @@ impl AsyncWrite for Pop3Stream {
         match &mut *self {
             Self::Plain(stream) => Pin::new(stream).poll_flush(cx),
             Self::Rustls(stream) => Pin::new(stream.as_mut()).poll_flush(cx),
+            #[cfg(not(target_os = "android"))]
             Self::NativeTls(stream) => Pin::new(stream.as_mut()).poll_flush(cx),
         }
     }
@@ -84,6 +89,7 @@ impl AsyncWrite for Pop3Stream {
         match &mut *self {
             Self::Plain(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::Rustls(stream) => Pin::new(stream.as_mut()).poll_shutdown(cx),
+            #[cfg(not(target_os = "android"))]
             Self::NativeTls(stream) => Pin::new(stream.as_mut()).poll_shutdown(cx),
         }
     }
@@ -169,17 +175,24 @@ impl Pop3Provider {
             ConnectionSecurity::StartTls => match Self::connect_starttls(config, false).await {
                 Ok(client) => Ok(client),
                 Err(rustls_err) => {
-                    debug!(
-                        "POP3 STARTTLS with rustls failed ({}), retrying with native-tls",
-                        rustls_err
-                    );
-                    Self::connect_starttls(config, true)
-                        .await
-                        .map_err(|native_err| {
-                            PebbleError::Network(format!(
+                    #[cfg(target_os = "android")]
+                    {
+                        Err(rustls_err)
+                    }
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        debug!(
+                            "POP3 STARTTLS with rustls failed ({}), retrying with native-tls",
+                            rustls_err
+                        );
+                        Self::connect_starttls(config, true)
+                            .await
+                            .map_err(|native_err| {
+                                PebbleError::Network(format!(
                                     "POP3 STARTTLS failed with both TLS backends — rustls: {rustls_err}, native-tls: {native_err}"
                                 ))
-                        })
+                            })
+                    }
                 }
             },
             ConnectionSecurity::Plain => {
@@ -197,19 +210,28 @@ impl Pop3Provider {
         let stream = match rustls_connect(&config.host, tcp, config.accept_invalid_certs).await {
             Ok(tls) => Pop3Stream::Rustls(Box::new(tls)),
             Err(rustls_err) => {
-                debug!(
-                    "POP3 rustls handshake failed ({}), retrying with native-tls",
-                    rustls_err
-                );
-                let tcp = connect_tcp(config).await?;
-                let tls = native_tls_connect(&config.host, tcp, config.accept_invalid_certs)
-                    .await
-                    .map_err(|e| {
-                        PebbleError::Network(format!(
-                            "POP3 TLS failed with both backends — rustls: {rustls_err}, native-tls: {e}"
-                        ))
-                    })?;
-                Pop3Stream::NativeTls(Box::new(tls))
+                #[cfg(target_os = "android")]
+                {
+                    return Err(PebbleError::Network(format!(
+                        "POP3 TLS failed (rustls): {rustls_err}"
+                    )));
+                }
+                #[cfg(not(target_os = "android"))]
+                {
+                    debug!(
+                        "POP3 rustls handshake failed ({}), retrying with native-tls",
+                        rustls_err
+                    );
+                    let tcp = connect_tcp(config).await?;
+                    let tls = native_tls_connect(&config.host, tcp, config.accept_invalid_certs)
+                        .await
+                        .map_err(|e| {
+                            PebbleError::Network(format!(
+                                "POP3 TLS failed with both backends — rustls: {rustls_err}, native-tls: {e}"
+                            ))
+                        })?;
+                    Pop3Stream::NativeTls(Box::new(tls))
+                }
             }
         };
         let mut client = Pop3Client::new(stream);
@@ -232,8 +254,19 @@ impl Pop3Provider {
         };
 
         let upgraded = if use_native_tls {
-            let tls = native_tls_connect(&config.host, tcp, config.accept_invalid_certs).await?;
-            Pop3Stream::NativeTls(Box::new(tls))
+            #[cfg(target_os = "android")]
+            {
+                let _ = tcp;
+                return Err(PebbleError::Network(
+                    "native-tls is not available on Android; rustls is required".into(),
+                ));
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                let tls =
+                    native_tls_connect(&config.host, tcp, config.accept_invalid_certs).await?;
+                Pop3Stream::NativeTls(Box::new(tls))
+            }
         } else {
             let tls = rustls_connect(&config.host, tcp, config.accept_invalid_certs).await?;
             Pop3Stream::Rustls(Box::new(tls))
@@ -431,6 +464,7 @@ async fn rustls_connect(
     .await
 }
 
+#[cfg(not(target_os = "android"))]
 fn build_native_tls_connector(
     accept_invalid_certs: bool,
 ) -> Result<async_native_tls::TlsConnector> {
@@ -446,6 +480,7 @@ fn build_native_tls_connector(
     Ok(async_native_tls::TlsConnector::from(connector))
 }
 
+#[cfg(not(target_os = "android"))]
 async fn native_tls_connect(
     host: &str,
     tcp: TcpStream,
@@ -539,9 +574,11 @@ fn validate_command_arg(label: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(target_os = "android"))]
+    use super::build_native_tls_connector;
     use super::{
-        build_native_tls_connector, build_rustls_connector, parse_list_lines, parse_uidl_lines,
-        strip_crlf, validate_command_arg,
+        build_rustls_connector, parse_list_lines, parse_uidl_lines, strip_crlf,
+        validate_command_arg,
     };
 
     #[test]
@@ -582,6 +619,7 @@ mod tests {
         assert!(build_rustls_connector(true).is_ok());
     }
 
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn build_native_tls_connector_returns_result() {
         assert!(build_native_tls_connector(false).is_ok());

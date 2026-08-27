@@ -11,6 +11,7 @@ import { extractErrorMessage } from "@/lib/extractErrorMessage";
 import { realtimePreferenceToPollInterval, useUIStore } from "@/stores/ui.store";
 import { useToastStore } from "@/stores/toast.store";
 import { inputStyle, labelStyle } from "../styles/form";
+import { isAndroidRuntime } from "@/lib/platform";
 
 const FOLDER_REFRESH_ATTEMPTS = 5;
 const FOLDER_REFRESH_INTERVAL_MS = 2000;
@@ -410,6 +411,22 @@ export default function AccountSetup({ onClose }: Props) {
 
         {/* Scrollable body */}
         <div className="scroll-region account-setup-scroll" style={{ overflowY: "auto", padding: "20px" }}>
+          {isAndroidRuntime() && (
+            <p
+              role="note"
+              style={{
+                margin: "0 0 12px",
+                fontSize: "12px",
+                lineHeight: 1.45,
+                color: "var(--color-text-secondary)",
+              }}
+            >
+              {t(
+                "accountSetup.oauthAndroidHint",
+                "Gmail and Outlook buttons still need a later OAuth phase on Android. Use IMAP or POP3 for this sideload build.",
+              )}
+            </p>
+          )}
           {/* OAuth sign-in buttons */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
             <button

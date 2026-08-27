@@ -1,4 +1,6 @@
 mod account_colors;
+#[cfg(target_os = "android")]
+mod android_open;
 mod commands;
 mod events;
 mod profile;
@@ -11,16 +13,20 @@ use state::AppState;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Listener, Manager, Runtime, WindowEvent,
 };
+use tauri::{AppHandle, Emitter, Listener, Manager, Runtime, WindowEvent};
 use tracing_subscriber::prelude::*;
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
+#[cfg(desktop)]
 const TRAY_SHOW_ID: &str = "tray-show";
+#[cfg(desktop)]
 const TRAY_HIDE_ID: &str = "tray-hide";
+#[cfg(desktop)]
 const TRAY_QUIT_ID: &str = "tray-quit";
 const DEEP_LINK_NEW_URL_EVENT: &str = "deep-link://new-url";
 
@@ -86,6 +92,7 @@ fn restore_main_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+#[cfg(desktop)]
 fn hide_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
@@ -155,6 +162,7 @@ fn record_mailto_urls<R: Runtime>(app: &AppHandle<R>, urls: Vec<String>) {
     );
 }
 
+#[cfg(desktop)]
 fn build_tray_menu<R: Runtime, M: Manager<R>>(
     manager: &M,
     show_label: &str,
@@ -169,6 +177,7 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
         .build()
 }
 
+#[cfg(desktop)]
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = build_tray_menu(app, "Show Window", "Hide Window", "Quit Pebble")?;
     let icon = app
@@ -211,12 +220,21 @@ fn set_tray_menu_labels(
     hide_label: String,
     quit_label: String,
 ) -> Result<(), String> {
-    let menu =
-        build_tray_menu(&app, &show_label, &hide_label, &quit_label).map_err(|e| e.to_string())?;
-    let tray = app
-        .tray_by_id("main")
-        .ok_or_else(|| "tray icon is not initialized".to_string())?;
-    tray.set_menu(Some(menu)).map_err(|e| e.to_string())
+    #[cfg(desktop)]
+    {
+        let menu = build_tray_menu(&app, &show_label, &hide_label, &quit_label)
+            .map_err(|e| e.to_string())?;
+        let tray = app
+            .tray_by_id("main")
+            .ok_or_else(|| "tray icon is not initialized".to_string())?;
+        return tray.set_menu(Some(menu)).map_err(|e| e.to_string());
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, show_label, hide_label, quit_label);
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -327,6 +345,7 @@ pub fn run() {
             let startup_start = Instant::now();
             let mut startup_phase = startup_start;
             tracing::info!("[startup] tauri setup started");
+            #[cfg(desktop)]
             if let Err(e) = setup_tray(app) {
                 tracing::warn!("Failed to create system tray icon: {e}");
             }
@@ -486,13 +505,21 @@ pub fn run() {
                     commands::pending_mail_ops::run_pending_mail_ops_worker(app_for_pending_ops)
                         .await;
                 });
-                let app_for_s3 = app_for_workers.clone();
-                tauri::async_runtime::spawn(async move {
-                    commands::cloud_sync::run_auto_backup_worker(app_for_workers).await;
-                });
-                tauri::async_runtime::spawn(async move {
-                    commands::s3_sync::run_s3_vault_worker(app_for_s3).await;
-                });
+                // Desktop-only: Android S3 / WebDAV vault sync is Phase 3.
+                #[cfg(desktop)]
+                {
+                    let app_for_s3 = app_for_workers.clone();
+                    tauri::async_runtime::spawn(async move {
+                        commands::cloud_sync::run_auto_backup_worker(app_for_workers).await;
+                    });
+                    tauri::async_runtime::spawn(async move {
+                        commands::s3_sync::run_s3_vault_worker(app_for_s3).await;
+                    });
+                }
+                #[cfg(not(desktop))]
+                {
+                    let _ = app_for_workers;
+                }
             });
             log_startup_phase(startup_start, &mut startup_phase, "background workers scheduled");
             tracing::info!(

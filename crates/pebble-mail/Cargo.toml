@@ -16,8 +16,6 @@ tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 webpki-roots = { workspace = true }
 mail-parser = { workspace = true }
-native-tls = { workspace = true }
-tokio-native-tls = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 utf7-imap = "0.3"
@@ -25,3 +23,9 @@ lettre = { workspace = true }
 reqwest = { workspace = true }
 tokio-socks = { workspace = true }
 rand = "0.8"
+
+# OpenSSL-backed native-tls does not cross-compile cleanly to Android.
+# Desktop keeps the rustls → native-tls fallback; Android is rustls-only.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+native-tls = { workspace = true }
+tokio-native-tls = { workspace = true }
