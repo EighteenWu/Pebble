@@ -37,7 +37,7 @@ pub fn throw_if_exception(env: &mut JNIEnv<'_>) -> Result<(), String> {
 
 pub fn load_app_class<'local>(
     env: &mut JNIEnv<'local>,
-    context: &JObject<'local>,
+    context: &JObject<'_>,
     dotted_name: &str,
 ) -> Result<JClass<'local>, String> {
     let loader = env

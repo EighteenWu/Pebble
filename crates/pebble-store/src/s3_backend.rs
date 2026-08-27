@@ -602,7 +602,7 @@ mod tests {
                                     continue;
                                 }
                             }
-                            if headers.get("if-none-match").is_some() {
+                            if headers.contains_key("if-none-match") {
                                 let objects = state.objects.lock().unwrap();
                                 if objects.contains_key(&path) {
                                     let _ = stream.write_all(b"HTTP/1.1 412 Precondition Failed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");

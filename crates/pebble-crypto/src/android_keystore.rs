@@ -57,9 +57,12 @@ fn throw_if_java_exception(env: &mut JNIEnv<'_>) -> std::result::Result<(), DekS
 }
 
 /// Load an application class from the app ClassLoader, not JNI `FindClass`.
+///
+/// `JNIEnv` and `JObject` must not share one lifetime: the env is invariant
+/// and the Context local from `ndk_context` is a different `'local`.
 fn load_app_class<'local>(
     env: &mut JNIEnv<'local>,
-    context: &JObject<'local>,
+    context: &JObject<'_>,
     dotted_name: &str,
 ) -> std::result::Result<JClass<'local>, DekStoreError> {
     let loader = env
@@ -98,7 +101,7 @@ fn load_app_class<'local>(
 
 fn helper_class<'local>(
     env: &mut JNIEnv<'local>,
-    context: &JObject<'local>,
+    context: &JObject<'_>,
 ) -> std::result::Result<JClass<'local>, DekStoreError> {
     load_app_class(env, context, HELPER_CLASS_DOTTED)
         .map_err(|e| DekStoreError::Other(format!("PebbleKeystore class via app ClassLoader: {e}")))
