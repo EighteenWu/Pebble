@@ -63,7 +63,7 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-        run: pnpm exec tauri android build --apk --targets aarch64
+        run: pnpm exec tauri android build --apk --target aarch64 --ci
 
       - name: Collect APK artifacts
         run: |

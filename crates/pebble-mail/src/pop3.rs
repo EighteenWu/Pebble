@@ -8,6 +8,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::net::TcpStream;
 #[cfg(not(target_os = "android"))]
 use tokio_native_tls as async_native_tls;
+#[cfg(not(target_os = "android"))]
 use tracing::debug;
 
 use crate::imap::{ConnectionSecurity, ProxyConfig};

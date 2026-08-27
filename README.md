@@ -182,13 +182,17 @@ pnpm install
 # src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
 pnpm dev:android          # device or emulator
 pnpm build:android        # APKs under src-tauri/gen/android/
-# faster phone sideload: pnpm exec tauri android build --apk --targets aarch64
+# faster phone sideload: pnpm exec tauri android build --apk --target aarch64
 ```
 
 Sideload:
 
 ```bash
+# Debug-signed APK (easiest to sideload):
+pnpm exec tauri android build --debug --apk --target aarch64
 adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+# Release APK from `pnpm build:android` is unsigned. Sign it before install, or use the debug build above.
 ```
 
 What works on Android today: IMAP (and POP3) add-account, open-app sync, read, send, and in-app / system test notifications. Desktop S3 vault sync and WebDAV stay on the desktop build.

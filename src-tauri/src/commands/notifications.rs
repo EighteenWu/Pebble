@@ -6,6 +6,7 @@ use tauri::image::Image;
 use tauri::{AppHandle, Manager, Runtime, State};
 #[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
+#[cfg(desktop)]
 use tracing::warn;
 
 #[cfg(desktop)]

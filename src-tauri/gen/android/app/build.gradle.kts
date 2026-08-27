@@ -54,7 +54,8 @@ android {
 }
 
 rust {
-    rootDirRel = "../../../"
+    // From app/ this must reach the repo root (package.json + Tauri CLI), not src-tauri/.
+    rootDirRel = "../../../../"
 }
 
 dependencies {

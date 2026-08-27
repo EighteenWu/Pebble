@@ -85,6 +85,7 @@ fn get_index_path(app_data: &std::path::Path) -> Result<PathBuf, Box<dyn std::er
 
 fn restore_main_window<R: Runtime>(app: &AppHandle<R>) {
     commands::notifications::clear_attention_indicator(app);
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
@@ -281,6 +282,7 @@ pub fn run() {
         }
     }
 
+    #[cfg_attr(not(desktop), allow(unused_mut))]
     let mut builder = tauri::Builder::default();
 
     #[cfg(desktop)]

@@ -142,6 +142,7 @@ fn is_notification_open_action(action: &str) -> bool {
 
 fn open_message_from_notification(app: &tauri::AppHandle, account_id: &str, message_id: &str) {
     notifications::clear_attention_indicator(app);
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();

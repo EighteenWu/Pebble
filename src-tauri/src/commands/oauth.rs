@@ -1,13 +1,18 @@
+#[cfg(desktop)]
+use super::network::resolve_effective_proxy;
 use super::network::{
     account_proxy_setting_from_parts, get_global_proxy_raw, normalize_account_proxy_setting,
-    proxy_config_from_parts, resolve_effective_proxy, resolve_effective_proxy_setting,
-    AccountProxyMode, AccountProxySetting,
+    proxy_config_from_parts, resolve_effective_proxy_setting, AccountProxyMode,
+    AccountProxySetting,
 };
+#[cfg(desktop)]
 use crate::account_colors::default_account_color;
 use crate::commands::encrypted_store::{load_account_auth_data, store_account_auth_data};
 use crate::state::{AppState, OAuthAccountLockRegistry};
+#[cfg(desktop)]
+use pebble_core::new_id;
 use pebble_core::{
-    new_id, now_timestamp, Account, HttpProxyConfig, OAuthTokens, PebbleError, ProviderType,
+    now_timestamp, Account, HttpProxyConfig, OAuthTokens, PebbleError, ProviderType,
 };
 use pebble_crypto::CryptoService;
 use pebble_mail::gmail_sync::TokenRefresher;

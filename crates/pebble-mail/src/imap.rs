@@ -940,6 +940,7 @@ impl ImapProvider {
         };
 
         // Helper: reconnect TCP for TLS fallback (no report, just the socket)
+        #[cfg(not(target_os = "android"))]
         let reconnect_tcp = |config: &ImapConfig| {
             let addr_clone = addr.clone();
             let proxy = config.proxy.clone();

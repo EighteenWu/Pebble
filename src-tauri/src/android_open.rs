@@ -7,7 +7,7 @@ const HELPER_CLASS: &str = "com/qingj01/pebble/PebbleIntents";
 
 pub fn open_url(url: &str) -> Result<(), String> {
     let ctx = ndk_context::android_context();
-    let vm = ctx.vm().cast();
+    let vm: *mut jni::sys::JavaVM = ctx.vm().cast();
     if vm.is_null() {
         return Err("Android NDK VM is not initialized".into());
     }

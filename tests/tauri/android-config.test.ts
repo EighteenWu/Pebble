@@ -55,5 +55,8 @@ describe("Tauri Android config", () => {
     expect(existsSync(keystore)).toBe(true);
     expect(readFileSync(keystore, "utf8")).toContain("AndroidKeyStore");
     expect(readFileSync(manifest, "utf8")).toContain("POST_NOTIFICATIONS");
+
+    const gradle = readFileSync(resolve(androidRoot, "app", "build.gradle.kts"), "utf8");
+    expect(gradle).toContain('rootDirRel = "../../../../"');
   });
 });

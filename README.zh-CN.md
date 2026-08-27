@@ -184,13 +184,17 @@ pnpm install
 # src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
 pnpm dev:android
 pnpm build:android
-# 手机侧载可只编 arm64：pnpm exec tauri android build --apk --targets aarch64
+# 手机侧载可只编 arm64：pnpm exec tauri android build --apk --target aarch64
 ```
 
 侧载：
 
 ```bash
+# 调试签名 APK（最容易侧载）：
+pnpm exec tauri android build --debug --apk --target aarch64
 adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+# `pnpm build:android` 产出的 release APK 未签名，安装前需要签名，或改用上面的 debug 构建。
 ```
 
 当前可用：IMAP（以及桌面已有的 POP3）添加账户、打开应用同步、阅读、发送，以及基础通知。桌面 S3 保险库同步和 WebDAV 保持在桌面端。

@@ -21,7 +21,7 @@ fn with_env<T>(
     f: impl FnOnce(&mut JNIEnv<'_>, JObject<'_>) -> std::result::Result<T, DekStoreError>,
 ) -> std::result::Result<T, DekStoreError> {
     let ctx = ndk_context::android_context();
-    let vm = ctx.vm().cast();
+    let vm: *mut jni::sys::JavaVM = ctx.vm().cast();
     if vm.is_null() {
         return Err(DekStoreError::Other(
             "Android NDK VM is not initialized".into(),
