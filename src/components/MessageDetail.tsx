@@ -144,7 +144,7 @@ export default function MessageDetail({ messageId, onBack, folderRole }: Props) 
   function handleCreateRuleFromSelection(text: string) {
     const ui = useUIStore.getState();
     ui.setPendingRuleDraftText(text);
-    ui.setSettingsTab("rules");
+    ui.openSettingsSection("rules");
     ui.setActiveView("settings");
     setShowSelectionActions(null);
   }

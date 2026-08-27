@@ -23,6 +23,7 @@ const EMPTY_THREADS: ThreadSummary[] = [];
 export default function InboxView() {
   const { t } = useTranslation();
   const setActiveView = useUIStore((s) => s.setActiveView);
+  const openSettingsSection = useUIStore((s) => s.openSettingsSection);
   const activeFolderId = useMailStore((s) => s.activeFolderId);
   const activeAccountId = useMailStore((s) => s.activeAccountId);
   const selectedMessageId = useMailStore((s) => s.selectedMessageId);
@@ -89,7 +90,10 @@ export default function InboxView() {
           {t("inbox.addAccountHint", "Add an email account to get started")}
         </p>
         <button
-          onClick={() => setActiveView("settings")}
+          onClick={() => {
+            openSettingsSection("accounts");
+            setActiveView("settings");
+          }}
           style={{
             marginTop: "8px", padding: "8px 20px", borderRadius: "6px",
             border: "none", backgroundColor: "var(--color-accent)", color: "#fff",

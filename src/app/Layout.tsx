@@ -23,6 +23,7 @@ import { useCloseToBackground } from "./useCloseToBackground";
 import { useTrayI18n } from "./useTrayI18n";
 import { useMailtoOpen } from "./useMailtoOpen";
 import { useVisualViewportInset } from "./useVisualViewportInset";
+import { useAndroidBackNavigation } from "./useAndroidBackNavigation";
 import { S3VaultConflictListener } from "./useS3VaultConflict";
 import AppBackground from "./AppBackground";
 
@@ -91,6 +92,7 @@ export default function Layout() {
   useTrayI18n();
   useMailtoOpen();
   useVisualViewportInset();
+  useAndroidBackNavigation();
 
   // Re-register commands when language changes
   useEffect(() => {

@@ -25,7 +25,8 @@
     "closeNotification": "关闭通知",
     "undo": "撤销",
     "confirm": "确认",
-    "send": "发送"
+    "send": "发送",
+    "back": "返回"
   },
   "tray": {
     "show": "显示窗口",
@@ -138,6 +139,8 @@
     "mailtoSkippedLinks_other": "已打开第一个邮件链接，另有 {{count}} 个链接已跳过。"
   },
   "settings": {
+    "title": "设置",
+    "tabs": "设置分类",
     "accounts": "账户",
     "general": "通用",
     "proxy": "代理",
@@ -326,6 +329,7 @@
     "s3ConflictPrompt": "云端有更新的保险库，与本地更改冲突。请选择使用云端或使用本地。",
     "s3SyncFailed": "云同步失败：{{error}}",
     "s3RestoreFailed": "从云端恢复失败：{{error}}",
+    "s3PassphraseMismatch": "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
     "s3CredentialsRequired": "测试或启用同步前，请填写 endpoint、区域、存储桶、Access Key 和 Secret Key。"
   },
   "pendingOps": {

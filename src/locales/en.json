@@ -25,7 +25,8 @@
     "closeNotification": "Close notification",
     "undo": "Undo",
     "confirm": "Confirm",
-    "send": "Send"
+    "send": "Send",
+    "back": "Back"
   },
   "tray": {
     "show": "Show Window",
@@ -138,6 +139,8 @@
     "mailtoSkippedLinks_other": "Opened the first mail link. {{count}} additional links were skipped."
   },
   "settings": {
+    "title": "Settings",
+    "tabs": "Settings tabs",
     "accounts": "Accounts",
     "general": "General",
     "proxy": "Proxy",
@@ -326,6 +329,7 @@
     "s3ConflictPrompt": "A newer cloud vault conflicts with local changes. Choose Use cloud or Use local.",
     "s3SyncFailed": "Cloud sync failed: {{error}}",
     "s3RestoreFailed": "Cloud restore failed: {{error}}",
+    "s3PassphraseMismatch": "The sync passphrase is wrong. Use the same phrase that encrypted the cloud file on your computer, save, then restore.",
     "s3CredentialsRequired": "Enter endpoint, region, bucket, access key, and secret key before testing or enabling sync."
   },
   "pendingOps": {

@@ -8,6 +8,7 @@ import { useUIStore, type RealtimeStatus } from "../stores/ui.store";
 import { useMailStore } from "@/stores/mail.store";
 import { stopSync } from "@/lib/api";
 import { useSyncMutation } from "@/hooks/mutations/useSyncMutation";
+import { isAndroidRuntime } from "@/lib/platform";
 import {
   pendingMailOpsSummaryQueryKey,
   usePendingMailOpsSummary,
@@ -184,6 +185,7 @@ export default function StatusBar() {
   const backgroundLabel = keepRunningInBackground
     ? t("status.exitOnClose", "Exit on close")
     : t("status.keepRunningInBackground", "Keep running in background on close");
+  const android = isAndroidRuntime();
   const pendingRemoteText = retryingRemoteWrites > 0
     ? t("status.remoteWritesRetrying", "{{count}} remote writes retrying", { count: retryingRemoteWrites })
     : failedRemoteWrites > 0
@@ -192,7 +194,7 @@ export default function StatusBar() {
 
   return (
     <footer
-      className="flex items-center px-3 h-6 text-xs border-t gap-3"
+      className="app-statusbar flex items-center px-3 h-6 text-xs border-t gap-3"
       style={{
         backgroundColor: "var(--color-statusbar-bg)",
         borderColor: "var(--color-border)",
@@ -292,30 +294,32 @@ export default function StatusBar() {
       )}
 
       <span className="ml-auto flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => setKeepRunningInBackground(!keepRunningInBackground)}
-          aria-label={backgroundLabel}
-          aria-pressed={keepRunningInBackground}
-          title={backgroundLabel}
-          className="inline-flex items-center justify-center"
-          style={{
-            width: "20px",
-            height: "20px",
-            border: "1px solid transparent",
-            borderRadius: "4px",
-            background: keepRunningInBackground
-              ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
-              : "transparent",
-            color: keepRunningInBackground
-              ? "var(--color-accent)"
-              : "var(--color-text-secondary)",
-            cursor: "pointer",
-            padding: 0,
-          }}
-        >
-          <AppWindow aria-hidden="true" size={13} />
-        </button>
+        {!android && (
+          <button
+            type="button"
+            onClick={() => setKeepRunningInBackground(!keepRunningInBackground)}
+            aria-label={backgroundLabel}
+            aria-pressed={keepRunningInBackground}
+            title={backgroundLabel}
+            className="inline-flex items-center justify-center"
+            style={{
+              width: "20px",
+              height: "20px",
+              border: "1px solid transparent",
+              borderRadius: "4px",
+              background: keepRunningInBackground
+                ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
+                : "transparent",
+              color: keepRunningInBackground
+                ? "var(--color-accent)"
+                : "var(--color-text-secondary)",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            <AppWindow aria-hidden="true" size={13} />
+          </button>
+        )}
         {notificationsEnabled && (
           <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

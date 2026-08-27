@@ -63,6 +63,7 @@ export default function Sidebar() {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const closeMobileNav = useUIStore((s) => s.closeMobileNav);
+  const closeSettingsSection = useUIStore((s) => s.closeSettingsSection);
   const android = isAndroidRuntime();
   const activeFolderId = useMailStore((s) => s.activeFolderId);
   const activeAccountId = useMailStore((s) => s.activeAccountId);
@@ -138,9 +139,15 @@ export default function Sidebar() {
     if (isComposeDirty()) {
       const confirmed = await confirmDiscardDraft();
       if (!confirmed) return;
+      if (view === "settings") {
+        closeSettingsSection();
+      }
       useComposeStore.getState().discardComposeAndSetActiveView(view);
       closeMobileNav();
       return;
+    }
+    if (view === "settings") {
+      closeSettingsSection();
     }
     setActiveView(view);
     closeMobileNav();
