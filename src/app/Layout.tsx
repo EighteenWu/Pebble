@@ -22,6 +22,7 @@ import { useNotificationOpenNavigation } from "./useNotificationOpenNavigation";
 import { useCloseToBackground } from "./useCloseToBackground";
 import { useTrayI18n } from "./useTrayI18n";
 import { useMailtoOpen } from "./useMailtoOpen";
+import { S3VaultConflictListener } from "./useS3VaultConflict";
 import AppBackground from "./AppBackground";
 
 const loadSettingsView = () => import("../features/settings/SettingsView");
@@ -155,6 +156,7 @@ export default function Layout() {
       <CommandPalette />
       <ToastContainer />
       <GlobalConfirmDialog />
+      <S3VaultConflictListener />
     </div>
   );
 }

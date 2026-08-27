@@ -247,20 +247,53 @@ impl WebDavClient {
 
     /// Upload data to a path relative to the WebDAV root.
     pub async fn upload(&self, path: &str, data: &[u8]) -> Result<()> {
+        self.put_object(
+            path,
+            data,
+            crate::sync_backend::PutPrecondition::Unconditional,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    pub async fn put_object(
+        &self,
+        path: &str,
+        data: &[u8],
+        precondition: crate::sync_backend::PutPrecondition<'_>,
+    ) -> Result<crate::sync_backend::PutObjectResult> {
         let url = format!("{}/{}", self.url, path.trim_start_matches('/'));
-        let resp = self
+        let mut req = self
             .client
             .put(&url)
             .basic_auth(&self.username, Some(&self.password))
             .header("Content-Type", "application/json")
-            .body(data.to_vec())
+            .body(data.to_vec());
+        match precondition {
+            crate::sync_backend::PutPrecondition::Unconditional => {}
+            crate::sync_backend::PutPrecondition::IfMatch(etag) => {
+                req = req.header("If-Match", crate::sync_backend::quoted_etag(etag));
+            }
+            crate::sync_backend::PutPrecondition::IfNoneMatchStar => {
+                req = req.header("If-None-Match", "*");
+            }
+        }
+        let resp = req
             .send()
             .await
             .map_err(|e| PebbleError::Network(format!("WebDAV PUT failed: {e}")))?;
 
         let status = resp.status().as_u16();
+        if status == 412 {
+            return Err(crate::sync_backend::etag_conflict_error());
+        }
         if (200..300).contains(&status) {
-            Ok(())
+            let etag = resp
+                .headers()
+                .get("etag")
+                .and_then(|value| value.to_str().ok())
+                .map(crate::sync_backend::normalize_etag);
+            Ok(crate::sync_backend::PutObjectResult { etag })
         } else {
             let body = resp.text().await.unwrap_or_default();
             Err(PebbleError::Network(format!(
@@ -274,6 +307,17 @@ impl WebDavClient {
     /// the full body into memory — important for defending against malicious
     /// or corrupt files on the remote server.
     pub async fn download(&self, path: &str) -> Result<Vec<u8>> {
+        Ok(self
+            .get_object(path)
+            .await?
+            .ok_or_else(|| PebbleError::Network("WebDAV GET returned 404".to_string()))?
+            .data)
+    }
+
+    pub async fn get_object(
+        &self,
+        path: &str,
+    ) -> Result<Option<crate::sync_backend::GetObjectResult>> {
         let url = format!("{}/{}", self.url, path.trim_start_matches('/'));
         let mut resp = self
             .client
@@ -284,11 +328,20 @@ impl WebDavClient {
             .map_err(|e| PebbleError::Network(format!("WebDAV GET failed: {e}")))?;
 
         let status = resp.status().as_u16();
+        if status == 404 {
+            return Ok(None);
+        }
         if !(200..300).contains(&status) {
             return Err(PebbleError::Network(format!(
                 "WebDAV GET returned {status}"
             )));
         }
+
+        let etag = resp
+            .headers()
+            .get("etag")
+            .and_then(|value| value.to_str().ok())
+            .map(crate::sync_backend::normalize_etag);
 
         // Reject immediately if server advertises a size over the limit.
         if let Some(len) = resp.content_length() {
@@ -316,7 +369,43 @@ impl WebDavClient {
             }
             buf.extend_from_slice(&chunk);
         }
-        Ok(buf)
+        Ok(Some(crate::sync_backend::GetObjectResult {
+            data: buf,
+            etag,
+        }))
+    }
+
+    pub async fn head_object(
+        &self,
+        path: &str,
+    ) -> Result<Option<crate::sync_backend::HeadObjectResult>> {
+        let url = format!("{}/{}", self.url, path.trim_start_matches('/'));
+        let resp = self
+            .client
+            .head(&url)
+            .basic_auth(&self.username, Some(&self.password))
+            .send()
+            .await
+            .map_err(|e| PebbleError::Network(format!("WebDAV HEAD failed: {e}")))?;
+
+        let status = resp.status().as_u16();
+        if status == 404 {
+            return Ok(None);
+        }
+        if !(200..300).contains(&status) {
+            return Err(PebbleError::Network(format!(
+                "WebDAV HEAD returned {status}"
+            )));
+        }
+        let etag = resp
+            .headers()
+            .get("etag")
+            .and_then(|value| value.to_str().ok())
+            .map(crate::sync_backend::normalize_etag);
+        Ok(Some(crate::sync_backend::HeadObjectResult {
+            etag,
+            content_length: resp.content_length(),
+        }))
     }
 }
 

@@ -428,6 +428,7 @@ pub async fn add_account(
         return Err(e);
     }
 
+    crate::commands::s3_sync::request_s3_vault_push(&state);
     Ok(account)
 }
 
@@ -466,6 +467,7 @@ pub async fn update_account(
         state
             .store
             .update_account(&account_id, &email, &display_name, account_color.as_deref())?;
+        crate::commands::s3_sync::request_s3_vault_push(&state);
         return Ok(());
     }
 
@@ -592,6 +594,7 @@ pub async fn update_account(
     let config_bytes = serialize_account_credentials(&creds)?;
     store_account_auth_data(&state.crypto, &state.store, &account_id, &config_bytes)?;
 
+    crate::commands::s3_sync::request_s3_vault_push(&state);
     Ok(())
 }
 
@@ -953,6 +956,7 @@ pub async fn delete_account(
         tracing::warn!("Attachment cleanup task failed for account {account_id_for_log}: {e}");
     }
 
+    crate::commands::s3_sync::request_s3_vault_push(&state);
     Ok(())
 }
 

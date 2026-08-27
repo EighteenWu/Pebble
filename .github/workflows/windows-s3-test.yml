@@ -1,0 +1,101 @@
+# Sideload test installer for desktop S3 sync.
+# Intentionally separate from Release: no `environment: action`, and missing
+# official OAuth secrets must not fail this job.
+name: Windows S3 Test Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - cursor/desktop-s3-cloud-sync-44df
+
+concurrency:
+  group: windows-s3-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Build NSIS installer
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout S3 sync branch
+        uses: actions/checkout@v4
+        with:
+          ref: cursor/desktop-s3-cloud-sync-44df
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows installer
+        env:
+          # Optional for this sideload build. Empty values are fine; do not
+          # require the official Release `action` environment secrets.
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
+          MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
+        run: pnpm build:windows
+
+      - name: Collect NSIS installer and SHA-256
+        run: |
+          $ErrorActionPreference = "Stop"
+          $artifactDir = "s3-test-artifacts"
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $searchDirs = @(
+            "target/release/bundle/nsis",
+            "src-tauri/target/release/bundle/nsis"
+          )
+          $installers = @()
+          foreach ($dir in $searchDirs) {
+            if (Test-Path $dir) {
+              $installers += Get-ChildItem -Path $dir -Filter "*.exe" -File
+            }
+          }
+          $installers = $installers | Sort-Object FullName -Unique
+          if ($installers.Count -eq 0) {
+            throw "No NSIS installer found in target/release/bundle/nsis."
+          }
+
+          foreach ($installer in $installers) {
+            Copy-Item -Path $installer.FullName -Destination $artifactDir
+          }
+
+          Get-ChildItem -Path $artifactDir -Filter "*.exe" -File | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)" | Set-Content -Path "$($_.FullName).sha256" -Encoding ascii
+          }
+
+          Get-ChildItem -Path $artifactDir -File | Select-Object Name, Length
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pebble-windows-s3-test
+          path: s3-test-artifacts/*
+          if-no-files-found: error

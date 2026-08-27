@@ -338,6 +338,55 @@ export interface BackupPreview {
   size_bytes: number;
 }
 
+/** @rust pebble-store/src/s3_backend.rs → S3Provider */
+export type S3Provider = "r2" | "tos" | "custom";
+
+/** @rust pebble-store/src/vault.rs → VaultMeta */
+export interface VaultMeta {
+  revision: number;
+  checksum: string;
+  device_id: string;
+  updated_at: number;
+}
+
+/** @rust pebble-store/src/vault.rs → VaultConflict */
+export interface VaultConflict {
+  local: VaultMeta;
+  cloud: VaultMeta;
+}
+
+/** @rust src-tauri/src/commands/s3_sync.rs → S3SyncConfig */
+export interface S3SyncConfig {
+  provider: S3Provider;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  access_key: string;
+  secret_key: string;
+  prefix: string;
+  passphrase: string;
+  enabled: boolean;
+  interval_minutes: number;
+}
+
+/** @rust src-tauri/src/commands/s3_sync.rs → S3SyncStatus */
+export interface S3SyncStatus {
+  last_sync_at: number | null;
+  revision: number | null;
+  dirty: boolean;
+  pending_conflict: VaultConflict | null;
+}
+
+/** @rust src-tauri/src/commands/s3_sync.rs → VaultSyncResult */
+export type VaultSyncResult =
+  | { status: "synced"; last_sync_at: number; revision: number }
+  | { status: "pulled"; last_sync_at: number; revision: number; message: string }
+  | { status: "conflict"; local: VaultMeta; cloud: VaultMeta }
+  | { status: "empty" };
+
+/** @rust src-tauri/src/commands/s3_sync.rs → ConflictChoice */
+export type ConflictChoice = "cloud" | "local";
+
 // ─── Contacts types ─────────────────────────────────────────────────────────────
 
 /** @rust pebble-core/src/types.rs → ContactEmailLabel */

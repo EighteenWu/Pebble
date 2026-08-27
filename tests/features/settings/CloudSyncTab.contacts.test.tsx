@@ -35,6 +35,18 @@ vi.mock("@/lib/api", () => ({
   restoreFromWebdav: vi.fn(),
   saveAutoBackupConfig: vi.fn(),
   loadAutoBackupConfig: () => mocks.loadAutoBackupConfig(),
+  loadS3SyncConfig: vi.fn().mockResolvedValue(null),
+  getS3SyncStatus: vi.fn().mockResolvedValue({
+    last_sync_at: null,
+    revision: null,
+    dirty: false,
+    pending_conflict: null,
+  }),
+  saveS3SyncConfig: vi.fn(),
+  testS3Connection: vi.fn(),
+  syncS3Vault: vi.fn(),
+  restoreS3Vault: vi.fn(),
+  resolveS3VaultConflict: vi.fn(),
 }));
 
 import CloudSyncTab from "@/features/settings/CloudSyncTab";

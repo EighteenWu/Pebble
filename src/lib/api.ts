@@ -10,6 +10,7 @@ export type {
   AppLogSnapshot,
   Attachment,
   BackupPreview,
+  ConflictChoice,
   ConnectionSecurity,
   Contact,
   ContactEmail,
@@ -35,12 +36,18 @@ export type {
   PrivacyMode,
   RenderedHtml,
   Rule,
+  S3Provider,
+  S3SyncConfig,
+  S3SyncStatus,
   SearchHit,
   SnoozedMessage,
   ThreadSummary,
   TranslateConfig,
   TranslateResult,
   TrustedSender,
+  VaultConflict,
+  VaultMeta,
+  VaultSyncResult,
   VcardImportResult,
 } from "./ipc-types";
 
@@ -53,6 +60,7 @@ import type {
   AppLogSnapshot,
   Attachment,
   BackupPreview,
+  ConflictChoice,
   ConnectionSecurity,
   Contact,
   ContactInput,
@@ -72,12 +80,15 @@ import type {
   PrivacyMode,
   RenderedHtml,
   Rule,
+  S3SyncConfig,
+  S3SyncStatus,
   SearchHit,
   SnoozedMessage,
   ThreadSummary,
   TranslateConfig,
   TranslateResult,
   TrustedSender,
+  VaultSyncResult,
   VcardImportResult,
 } from "./ipc-types";
 
@@ -698,6 +709,40 @@ export async function loadAutoBackupConfig(): Promise<AutoBackupConfig | null> {
 
 export async function deleteAutoBackupConfig(): Promise<void> {
   return invoke<void>("delete_auto_backup_config");
+}
+
+// ─── S3-compatible vault sync ───────────────────────────────────────────────
+
+export async function testS3Connection(config: S3SyncConfig): Promise<string> {
+  return invoke<string>("test_s3_connection", { config });
+}
+
+export async function saveS3SyncConfig(config: S3SyncConfig): Promise<void> {
+  return invoke<void>("save_s3_sync_config", { config });
+}
+
+export async function loadS3SyncConfig(): Promise<S3SyncConfig | null> {
+  return invoke<S3SyncConfig | null>("load_s3_sync_config");
+}
+
+export async function deleteS3SyncConfig(): Promise<void> {
+  return invoke<void>("delete_s3_sync_config");
+}
+
+export async function getS3SyncStatus(): Promise<S3SyncStatus> {
+  return invoke<S3SyncStatus>("get_s3_sync_status");
+}
+
+export async function syncS3Vault(): Promise<VaultSyncResult> {
+  return invoke<VaultSyncResult>("sync_s3_vault");
+}
+
+export async function restoreS3Vault(): Promise<VaultSyncResult> {
+  return invoke<VaultSyncResult>("restore_s3_vault");
+}
+
+export async function resolveS3VaultConflict(choice: ConflictChoice): Promise<VaultSyncResult> {
+  return invoke<VaultSyncResult>("resolve_s3_vault_conflict", { choice });
 }
 
 // ─── Contacts API ────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ pub mod notifications;
 pub mod oauth;
 pub mod pending_mail_ops;
 pub mod rules;
+pub mod s3_sync;
 pub mod search;
 pub mod snooze;
 pub mod sync_cmd;
