@@ -177,6 +177,8 @@ describe("Tauri Android config", () => {
     expect(buildRs).toContain("max-page-size=16384");
     expect(verify).toContain("16384");
     expect(verify).toContain("llvm-readelf");
+    expect(verify).toContain("pending");
+    expect(verify).toContain("two lines");
     expect(verify).toContain("app-universal-release.apk");
     expect(keystoreRs).toContain("getClassLoader");
     expect(keystoreRs).toContain("loadClass");

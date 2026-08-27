@@ -67,12 +67,22 @@ for so in "${so_files[@]}"; do
     pebble_so_bytes="$size"
   fi
   "$readelf_bin" -l "$so"
+  # GNU llvm-readelf -l prints each LOAD across two lines (Align is $NF of
+  # the *second* line, often Flags like "R E"). NDK llvm-readelf is one line.
   alignment="$("$readelf_bin" -l "$so" | awk '
-    /LOAD/ {
-      align=$NF
-      print align
-      if (align == "0x1000" || align == "4096" || align == "2**12") bad=1
-      if (align == "0x4000" || align == "16384" || align == "2**14") good=1
+    function consider(v) {
+      if (v == "0x1000" || v == "4096" || v == "2**12") { print v; bad=1; return 1 }
+      if (v == "0x4000" || v == "16384" || v == "2**14") { print v; good=1; return 1 }
+      return 0
+    }
+    /^[ \t]*LOAD/ {
+      if (consider($NF)) { pending=0; next }
+      pending=1
+      next
+    }
+    pending {
+      consider($NF)
+      pending=0
     }
     END {
       if (NR == 0) exit 2
