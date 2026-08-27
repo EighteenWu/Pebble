@@ -782,6 +782,7 @@ pub async fn complete_oauth_flow(
         return Err(e);
     }
 
+    crate::commands::s3_sync::request_s3_vault_push(&state);
     Ok(account)
 }
 

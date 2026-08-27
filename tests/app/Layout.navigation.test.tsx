@@ -45,6 +45,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 vi.mock("../../src/lib/api", () => ({
   setNotificationsEnabled: mocks.setNotificationsEnabled,
   syncTitlebarTheme: mocks.syncTitlebarTheme,
+  resolveS3VaultConflict: vi.fn(),
 }));
 
 vi.mock("../../src/components/TitleBar", () => ({

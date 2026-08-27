@@ -486,8 +486,12 @@ pub fn run() {
                     commands::pending_mail_ops::run_pending_mail_ops_worker(app_for_pending_ops)
                         .await;
                 });
+                let app_for_s3 = app_for_workers.clone();
                 tauri::async_runtime::spawn(async move {
                     commands::cloud_sync::run_auto_backup_worker(app_for_workers).await;
+                });
+                tauri::async_runtime::spawn(async move {
+                    commands::s3_sync::run_s3_vault_worker(app_for_s3).await;
                 });
             });
             log_startup_phase(startup_start, &mut startup_phase, "background workers scheduled");
@@ -598,6 +602,14 @@ pub fn run() {
             commands::cloud_sync::save_auto_backup_config,
             commands::cloud_sync::load_auto_backup_config,
             commands::cloud_sync::delete_auto_backup_config,
+            commands::s3_sync::test_s3_connection,
+            commands::s3_sync::save_s3_sync_config,
+            commands::s3_sync::load_s3_sync_config,
+            commands::s3_sync::delete_s3_sync_config,
+            commands::s3_sync::get_s3_sync_status,
+            commands::s3_sync::sync_s3_vault,
+            commands::s3_sync::restore_s3_vault,
+            commands::s3_sync::resolve_s3_vault_conflict,
             commands::contacts::list_contacts,
             commands::contacts::get_contact_by_email,
             commands::contacts::save_contact,

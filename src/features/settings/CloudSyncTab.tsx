@@ -21,6 +21,7 @@ import {
 } from "../../lib/api";
 import { extractErrorMessage as errorMessage } from "@/lib/extractErrorMessage";
 import { profileLocalStorage } from "@/lib/profileStorage";
+import S3CloudSyncSection from "./S3CloudSyncSection";
 
 const LAST_BACKUP_KEY = "pebble-cloud-sync-last-backup";
 
@@ -718,6 +719,8 @@ export default function CloudSyncTab() {
       )}
 
       {/* Status message */}
+      <S3CloudSyncSection />
+
       {statusMsg && (
         <div
           role={statusType === "error" ? "alert" : "status"}

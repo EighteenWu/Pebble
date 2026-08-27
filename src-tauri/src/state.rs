@@ -4,9 +4,9 @@ use pebble_search::TantivySearch;
 use pebble_store::Store;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch, Mutex};
+use tokio::sync::{mpsc, watch, Mutex, Notify};
 
 pub type KeyedLockRegistry = Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>;
 pub type OAuthAccountLockRegistry = KeyedLockRegistry;
@@ -15,6 +15,18 @@ pub struct SyncHandle {
     pub stop_tx: watch::Sender<bool>,
     pub trigger_tx: mpsc::UnboundedSender<SyncTrigger>,
     pub task: tokio::task::JoinHandle<()>,
+}
+
+pub struct VaultPushSignal {
+    pub notify: Notify,
+    pub dirty: AtomicBool,
+}
+
+impl VaultPushSignal {
+    pub fn request(&self) {
+        self.dirty.store(true, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
 }
 
 pub struct AppState {
@@ -30,6 +42,7 @@ pub struct AppState {
     pub attachments_dir: PathBuf,
     pub notifications_enabled: Arc<AtomicBool>,
     pub notification_attention_active: Arc<AtomicBool>,
+    pub vault_push: Arc<VaultPushSignal>,
 }
 
 impl AppState {
@@ -51,6 +64,10 @@ impl AppState {
             attachments_dir,
             notifications_enabled: Arc::new(AtomicBool::new(true)),
             notification_attention_active: Arc::new(AtomicBool::new(false)),
+            vault_push: Arc::new(VaultPushSignal {
+                notify: Notify::new(),
+                dirty: AtomicBool::new(false),
+            }),
         }
     }
 }

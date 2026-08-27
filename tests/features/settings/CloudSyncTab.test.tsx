@@ -46,6 +46,18 @@ vi.mock("../../../src/lib/api", () => ({
   restoreFromWebdav: vi.fn(),
   saveAutoBackupConfig: vi.fn(),
   loadAutoBackupConfig: vi.fn(),
+  loadS3SyncConfig: vi.fn().mockResolvedValue(null),
+  getS3SyncStatus: vi.fn().mockResolvedValue({
+    last_sync_at: null,
+    revision: null,
+    dirty: false,
+    pending_conflict: null,
+  }),
+  saveS3SyncConfig: vi.fn(),
+  testS3Connection: vi.fn(),
+  syncS3Vault: vi.fn(),
+  restoreS3Vault: vi.fn(),
+  resolveS3VaultConflict: vi.fn(),
 }));
 
 describe("CloudSyncTab automatic backup configuration", () => {
@@ -81,7 +93,7 @@ describe("CloudSyncTab automatic backup configuration", () => {
     fireEvent.change(screen.getByLabelText("Backup encryption password"), {
       target: { value: "new-passphrase" },
     });
-    fireEvent.change(screen.getByRole("combobox"), {
+    fireEvent.change(screen.getByDisplayValue("1 h"), {
       target: { value: "30" },
     });
     const enabledToggle = screen.getByRole("checkbox", {

@@ -14,9 +14,9 @@ use pebble_crypto::passphrase::{
 };
 use pebble_store::cloud_sync::{
     preview_backup, serialize_backup, BackupPreview, BackupSecretSummary, RestoredAuthData,
-    RestoredPrivateData, RestoredSecureUserData, SettingsBackup, WebDavClient,
-    SETTINGS_BACKUP_FILENAME,
+    RestoredPrivateData, RestoredSecureUserData, SettingsBackup, SETTINGS_BACKUP_FILENAME,
 };
+use pebble_store::sync_backend::{LocalJsonBackend, PutPrecondition, SyncBackend, WebDavBackend};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
 
@@ -193,7 +193,7 @@ fn provider_slug(provider: &pebble_core::ProviderType) -> &'static str {
     }
 }
 
-fn build_backup_data(
+pub(crate) fn build_backup_data(
     state: &AppState,
     secret_passphrase: Option<String>,
 ) -> std::result::Result<Vec<u8>, PebbleError> {
@@ -205,7 +205,7 @@ fn build_backup_data(
     serialize_backup(&backup)
 }
 
-fn restore_backup_data(
+pub(crate) fn restore_backup_data(
     state: &AppState,
     data: &[u8],
     secret_passphrase: Option<String>,
@@ -239,8 +239,8 @@ pub async fn test_webdav_connection(
     username: String,
     password: String,
 ) -> std::result::Result<String, PebbleError> {
-    let client = WebDavClient::new(url, username, password)?;
-    client.test_connection().await?;
+    let backend = WebDavBackend::new(url, username, password)?;
+    backend.test_connection().await?;
     Ok("Connection successful".to_string())
 }
 
@@ -253,18 +253,38 @@ pub async fn backup_to_webdav(
     secret_passphrase: Option<String>,
 ) -> std::result::Result<String, PebbleError> {
     let data = build_backup_data(&state, secret_passphrase)?;
-    let client = WebDavClient::new(url, username, password)?;
-    client.upload(SETTINGS_BACKUP_FILENAME, &data).await?;
+    let backend = WebDavBackend::new(url, username, password)?;
+    backend
+        .put(
+            SETTINGS_BACKUP_FILENAME,
+            &data,
+            PutPrecondition::Unconditional,
+        )
+        .await?;
     Ok("Settings backup completed successfully".to_string())
 }
 
 #[tauri::command]
-pub fn export_backup_file(
+pub async fn export_backup_file(
     state: State<'_, AppState>,
     secret_passphrase: Option<String>,
 ) -> std::result::Result<String, PebbleError> {
     let data = build_backup_data(&state, secret_passphrase)?;
-    String::from_utf8(data)
+    let backend = LocalJsonBackend::new();
+    backend
+        .put(
+            SETTINGS_BACKUP_FILENAME,
+            &data,
+            PutPrecondition::Unconditional,
+        )
+        .await?;
+    let stored = backend
+        .get(SETTINGS_BACKUP_FILENAME)
+        .await?
+        .ok_or_else(|| {
+            PebbleError::Internal("Local export buffer was empty after write".to_string())
+        })?;
+    String::from_utf8(stored.data)
         .map_err(|e| PebbleError::Internal(format!("Backup JSON was not valid UTF-8: {e}")))
 }
 
@@ -274,12 +294,17 @@ pub fn preview_backup_file(data: String) -> std::result::Result<BackupPreview, P
 }
 
 #[tauri::command]
-pub fn import_backup_file(
+pub async fn import_backup_file(
     state: State<'_, AppState>,
     data: String,
     secret_passphrase: Option<String>,
 ) -> std::result::Result<String, PebbleError> {
-    restore_backup_data(&state, data.as_bytes(), secret_passphrase)
+    let backend = LocalJsonBackend::with_object(SETTINGS_BACKUP_FILENAME, data.into_bytes());
+    let stored = backend
+        .get(SETTINGS_BACKUP_FILENAME)
+        .await?
+        .ok_or_else(|| PebbleError::Validation("Imported backup file is empty".to_string()))?;
+    restore_backup_data(&state, &stored.data, secret_passphrase)
 }
 
 /// Download the backup and return a summary so the user can review the
@@ -291,8 +316,12 @@ pub async fn preview_webdav_backup(
     username: String,
     password: String,
 ) -> std::result::Result<BackupPreview, PebbleError> {
-    let client = WebDavClient::new(url, username, password)?;
-    let data = client.download(SETTINGS_BACKUP_FILENAME).await?;
+    let backend = WebDavBackend::new(url, username, password)?;
+    let data = backend
+        .get(SETTINGS_BACKUP_FILENAME)
+        .await?
+        .ok_or_else(|| PebbleError::Network("WebDAV GET returned 404".to_string()))?
+        .data;
     preview_backup(&data)
 }
 
@@ -304,14 +333,18 @@ pub async fn restore_from_webdav(
     password: String,
     secret_passphrase: Option<String>,
 ) -> std::result::Result<String, PebbleError> {
-    let client = WebDavClient::new(url, username, password)?;
-    let data = client.download(SETTINGS_BACKUP_FILENAME).await?;
+    let backend = WebDavBackend::new(url, username, password)?;
+    let data = backend
+        .get(SETTINGS_BACKUP_FILENAME)
+        .await?
+        .ok_or_else(|| PebbleError::Network("WebDAV GET returned 404".to_string()))?
+        .data;
     restore_backup_data(&state, &data, secret_passphrase)
 }
 
 const AUTO_BACKUP_CONFIG_KEY: &str = "auto-backup-config";
 const AUTO_BACKUP_CHECK_INTERVAL_SECS: u64 = 60;
-const SUPPORTED_AUTO_BACKUP_INTERVAL_MINUTES: &[u64] = &[30, 60, 180, 360, 720, 1440];
+pub(crate) const SUPPORTED_AUTO_BACKUP_INTERVAL_MINUTES: &[u64] = &[30, 60, 180, 360, 720, 1440];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoBackupConfig {
@@ -323,7 +356,7 @@ pub struct AutoBackupConfig {
     pub enabled: bool,
 }
 
-fn auto_backup_interval_duration(
+pub(crate) fn auto_backup_interval_duration(
     interval_minutes: u64,
 ) -> std::result::Result<std::time::Duration, PebbleError> {
     if !SUPPORTED_AUTO_BACKUP_INTERVAL_MINUTES.contains(&interval_minutes) {
@@ -413,8 +446,14 @@ pub async fn run_auto_backup_worker(app: tauri::AppHandle) {
         tracing::info!("[auto-backup] starting scheduled WebDAV backup");
         let backup_result: std::result::Result<(), PebbleError> = async {
             let data = build_backup_data(&state, config.secret_passphrase.clone())?;
-            let client = WebDavClient::new(config.url, config.username, config.password)?;
-            client.upload(SETTINGS_BACKUP_FILENAME, &data).await?;
+            let backend = WebDavBackend::new(config.url, config.username, config.password)?;
+            backend
+                .put(
+                    SETTINGS_BACKUP_FILENAME,
+                    &data,
+                    PutPrecondition::Unconditional,
+                )
+                .await?;
             Ok(())
         }
         .await;
