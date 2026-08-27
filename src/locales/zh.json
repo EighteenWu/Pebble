@@ -58,7 +58,9 @@
     "noSubject": "（无主题）",
     "emailContent": "邮件内容",
     "welcome": "欢迎使用 Pebble",
-    "addAccountHint": "添加邮箱账户以开始使用",
+    "addAccountHint": "添加邮箱账户，或从云端保险库恢复设置。",
+    "restoreFromCloud": "从云端恢复",
+    "openSettings": "设置",
     "messageView": "邮件视图",
     "threadView": "会话视图",
     "messageList": "邮件列表"

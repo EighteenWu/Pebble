@@ -25,5 +25,7 @@ describe("inbox responsive CSS", () => {
     expect(css).toContain(".settings-mobile-list");
     expect(css).toContain(".s3-actions");
     expect(css).toContain('.app-shell[data-platform="android"] .s3-sync-section');
+    expect(css).toContain(".inbox-welcome-actions");
+    expect(css).toContain(".mobile-topbar-settings");
   });
 });

@@ -58,7 +58,9 @@
     "noSubject": "(no subject)",
     "emailContent": "Email content",
     "welcome": "Welcome to Pebble",
-    "addAccountHint": "Add an email account to get started",
+    "addAccountHint": "Add an email account, or restore the encrypted settings vault from your cloud bucket.",
+    "restoreFromCloud": "Restore from cloud",
+    "openSettings": "Settings",
     "messageView": "Message view",
     "threadView": "Thread view",
     "messageList": "Message list"

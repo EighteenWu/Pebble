@@ -58,7 +58,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { setNotificationsEnabled as setBackendNotificationsEnabled, syncTitlebarTheme } from "@/lib/api";
 import { isAndroidRuntime, isDesktopShell, platformAttr } from "@/lib/platform";
-import { Menu } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 
 export default function Layout() {
   const activeView = useUIStore((s) => s.activeView);
@@ -70,6 +70,8 @@ export default function Layout() {
   const notificationsEnabled = useUIStore((s) => s.notificationsEnabled);
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const closeMobileNav = useUIStore((s) => s.closeMobileNav);
+  const closeSettingsSection = useUIStore((s) => s.closeSettingsSection);
   const android = isAndroidRuntime();
   const desktop = isDesktopShell();
   const { t } = useTranslation();
@@ -160,6 +162,18 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <span className="mobile-topbar-title">Pebble</span>
+          <button
+            type="button"
+            className="mobile-topbar-button mobile-topbar-settings"
+            aria-label={t("sidebar.settings", "Settings")}
+            onClick={() => {
+              closeSettingsSection();
+              closeMobileNav();
+              setActiveView("settings");
+            }}
+          >
+            <Settings size={20} />
+          </button>
         </header>
       )}
       {android && mobileNavOpen && (

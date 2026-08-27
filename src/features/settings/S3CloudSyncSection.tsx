@@ -22,6 +22,7 @@ import {
 import { extractErrorMessage as errorMessage } from "@/lib/extractErrorMessage";
 import { formatS3VaultError } from "@/lib/s3VaultError";
 import { useToastStore } from "@/stores/toast.store";
+import { useUIStore } from "@/stores/ui.store";
 
 const labelStyle: React.CSSProperties = {
   ...baseLabelStyle,
@@ -178,6 +179,10 @@ export default function S3CloudSyncSection() {
     if (described.conflict) setConflict(described.conflict);
     if (result.status === "pulled") {
       void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["folders"] });
+      useUIStore.getState().closeSettingsSection();
+      useUIStore.getState().setActiveView("inbox");
     }
   }
 

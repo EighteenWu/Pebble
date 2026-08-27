@@ -47,8 +47,16 @@ vi.mock("../../../src/stores/mail.store", () => ({
 }));
 
 vi.mock("../../../src/stores/ui.store", () => ({
-  useUIStore: (selector: (state: { setActiveView: () => void }) => unknown) =>
-    selector({ setActiveView: vi.fn() }),
+  useUIStore: (selector: (state: {
+    setActiveView: () => void;
+    openSettingsSection: () => void;
+    closeSettingsSection: () => void;
+  }) => unknown) =>
+    selector({
+      setActiveView: vi.fn(),
+      openSettingsSection: vi.fn(),
+      closeSettingsSection: vi.fn(),
+    }),
 }));
 
 vi.mock("../../../src/stores/toast.store", () => ({
