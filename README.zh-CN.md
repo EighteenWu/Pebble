@@ -174,7 +174,9 @@ sudo xattr -cr /Applications/Pebble.app
 
 第二阶段提供可侧载的 Android APK，不是 Play Store / AAB 发布。
 
-需要 Rust stable、JDK 17+、Android SDK platform 36、NDK 27，以及 Android Rust target。设备 DEK 通过 JNI 助手 `PebbleKeystore` 写入 Android Keystore；桌面 `keyring` 3 没有 Android 后端。
+需要 Rust stable、JDK 17+、Android SDK platform 36、NDK 27，以及 Android Rust target。设备 DEK 通过应用包内的 JNI 助手 `PebbleKeystore`（`com.qingj01.pebble`）写入 Android Keystore；Tauri `setup()` 用应用 `ClassLoader` 加载该类，不能走 native 线程上的系统 `FindClass`。
+
+CI 产物是 **debug 签名、Rust release 优化** 的 aarch64 APK（artifact：`pebble-android-apk` / `app-universal-release.apk`）。`.so` 已 strip，并且 16 KB 页对齐（`llvm-readelf -l` 的 LOAD Align 为 `0x4000` / 16384）。小米 15 Ultra（骁龙 8 Elite / Android 15）是 16 KB 页设备：未对齐的 native 库会在 `dlopen` 时直接闪退、没有 Java 对话框。此前 `tauri android build --debug` 未 strip，压缩包约 90 MB，装到手机约 300 MB。
 
 ```bash
 pnpm install
@@ -187,14 +189,15 @@ pnpm build:android
 # 手机侧载可只编 arm64：pnpm exec tauri android build --apk --target aarch64
 ```
 
-侧载：
+从 Actions 侧载（推荐）：
+
+1. 打开 **Android APK** workflow，下载 artifact `pebble-android-apk`。
+2. 解压后只装 `app-universal-release.apk`，不要装多余 ABI 的 APK。
+3. 手机上允许未知来源安装后打开该 APK。
 
 ```bash
-# 调试签名 APK（最容易侧载）：
-pnpm exec tauri android build --debug --apk --target aarch64
-adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-
-# `pnpm build:android` 产出的 release APK 未签名，安装前需要签名，或改用上面的 debug 构建。
+pnpm exec tauri android build --apk --target aarch64
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
 ```
 
 当前可用：IMAP（以及桌面已有的 POP3）添加账户、打开应用同步、阅读、发送，以及基础通知。桌面 S3 保险库同步和 WebDAV 保持在桌面端。

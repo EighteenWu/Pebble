@@ -1,5 +1,7 @@
 mod account_colors;
 #[cfg(target_os = "android")]
+mod android_jni;
+#[cfg(target_os = "android")]
 mod android_open;
 mod commands;
 mod events;
@@ -56,6 +58,20 @@ fn startup_phase_timing(
         phase_ms: now.duration_since(phase_start).as_millis(),
         total_ms: now.duration_since(start).as_millis(),
     }
+}
+
+fn surface_setup_error(error: impl std::fmt::Display) -> Box<dyn std::error::Error> {
+    let message = error.to_string();
+    eprintln!("[startup] {message}");
+    tracing::error!("[startup] {message}");
+    #[cfg(target_os = "android")]
+    {
+        if let Err(surface_error) = android_open::show_startup_error(&message) {
+            eprintln!("[startup] failed to show Android error UI: {surface_error}");
+            tracing::error!("[startup] failed to show Android error UI: {surface_error}");
+        }
+    }
+    message.into()
 }
 
 fn log_startup_phase(start: Instant, phase_start: &mut Instant, label: &'static str) {
@@ -296,7 +312,7 @@ pub fn run() {
         ));
     }
 
-    builder
+    let run_result = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .on_window_event(|window, event| {
@@ -366,7 +382,9 @@ pub fn run() {
             tracing::info!("Database path: {}", db_path.display());
             log_startup_phase(startup_start, &mut startup_phase, "app data paths resolved");
 
-            let store = pebble_store::Store::open(&db_path)?;
+            let store = pebble_store::Store::open(&db_path).map_err(|e| {
+                surface_setup_error(format!("Failed to open the SQLite database: {e}"))
+            })?;
             tracing::info!("Database initialized successfully");
             log_startup_phase(
                 startup_start,
@@ -383,7 +401,9 @@ pub fn run() {
 
             let index_path = get_index_path(&app_data)?;
             tracing::info!("Search index path: {}", index_path.display());
-            let search = pebble_search::TantivySearch::open(&index_path)?;
+            let search = pebble_search::TantivySearch::open(&index_path).map_err(|e| {
+                surface_setup_error(format!("Failed to open the search index: {e}"))
+            })?;
             let search_needs_reindex = search.needs_reindex();
             tracing::info!("Search index initialized successfully");
             log_startup_phase(startup_start, &mut startup_phase, "search index opened");
@@ -393,7 +413,11 @@ pub fn run() {
             // runs inside the background reindex task below, so startup can
             // proceed without waiting on a full-table scan.
 
-            let crypto = pebble_crypto::CryptoService::init()?;
+            let crypto = pebble_crypto::CryptoService::init().map_err(|e| {
+                surface_setup_error(format!(
+                    "Failed to initialize the device encryption key: {e}"
+                ))
+            })?;
             tracing::info!("Crypto service initialized successfully");
             log_startup_phase(startup_start, &mut startup_phase, "crypto service initialized");
 
@@ -668,8 +692,19 @@ pub fn run() {
             commands::user_data::set_email_signature,
             commands::user_data::migrate_email_signature_if_absent,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(error) = run_result {
+        let message = format!("error while running tauri application: {error}");
+        tracing::error!("{message}");
+        #[cfg(target_os = "android")]
+        {
+            let _ = android_open::show_startup_error(&message);
+            return;
+        }
+        #[cfg(not(target_os = "android"))]
+        panic!("{message}");
+    }
 }
 
 #[cfg(test)]
@@ -704,5 +739,46 @@ mod startup_timing_tests {
         assert!(!should_prefer_wayland(display, x11, false));
         assert!(should_prefer_wayland(display, x11, true));
         assert!(!should_prefer_wayland(display, wayland, true));
+    }
+
+    #[test]
+    fn setup_surfaces_sqlite_tantivy_and_crypto_errors() {
+        let lib = include_str!("lib.rs");
+        assert!(lib.contains("surface_setup_error"));
+        assert!(lib.contains("Failed to open the SQLite database"));
+        assert!(lib.contains("Failed to open the search index"));
+        assert!(lib.contains("Failed to initialize the device encryption key"));
+        assert!(lib.contains("show_startup_error"));
+        assert!(
+            !lib.contains(".expect(\"error while running tauri application\")"),
+            "Android setup failures must not abort via expect with zero UI"
+        );
+    }
+
+    #[test]
+    fn android_native_link_args_request_16kb_pages() {
+        let build = include_str!("../build.rs");
+        assert!(build.contains("max-page-size=16384"));
+        assert!(build.contains("common-page-size=16384"));
+        assert!(build.contains("emit_android_page_size_link_args"));
+    }
+
+    #[test]
+    fn android_jni_helpers_use_app_classloader() {
+        let keystore = include_str!("../../crates/pebble-crypto/src/android_keystore.rs");
+        let jni = include_str!("android_jni.rs");
+        let open = include_str!("android_open.rs");
+        for source in [keystore, jni] {
+            assert!(source.contains("getClassLoader"));
+            assert!(source.contains("loadClass"));
+        }
+        assert!(open.contains("load_app_class"));
+        assert!(open.contains("show_startup_error"));
+        assert!(keystore.contains("com.qingj01.pebble.PebbleKeystore"));
+        assert!(
+            !keystore.contains("find_class"),
+            "FindClass on a native thread uses the system classloader"
+        );
+        assert!(!open.contains("find_class"));
     }
 }

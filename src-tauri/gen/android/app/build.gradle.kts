@@ -23,21 +23,30 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        ndk {
+            // Do not package a 200–300 MB unstripped debug .so on device.
+            debugSymbolLevel = "none"
+        }
+    }
+    packaging {
+        jniLibs {
+            // AGP 8.5.1+ 16 KB-aligns uncompressed native libs in the APK.
+            useLegacyPackaging = false
+        }
     }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
-            isJniDebuggable = true
+            isJniDebuggable = false
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
-                jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
-            }
         }
         getByName("release") {
+            // Sideload without a Play upload keystore. CI and local
+            // `tauri android build --apk` produce an installable APK.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
+            isJniDebuggable = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))

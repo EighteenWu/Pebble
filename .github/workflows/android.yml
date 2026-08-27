@@ -65,6 +65,7 @@ jobs:
             echo "ANDROID_SDK_ROOT=${sdk_root}"
             echo "NDK_HOME=${ndk_dir}"
             echo "ANDROID_NDK_HOME=${ndk_dir}"
+            echo "ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
           } >> "$GITHUB_ENV"
           echo "Using SDK=${sdk_root}"
           echo "Using NDK=${ndk_dir}"
@@ -86,25 +87,12 @@ jobs:
           cp src-tauri/android-support/*.kt src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
 
       - name: Build Android APK
-        run: pnpm exec tauri android build --debug --apk --target aarch64 --ci
+        # Release-optimized, stripped Rust .so; Gradle release is debug-signed
+        # for sideload. Do not use `--debug` — that left a 200–300 MB .so.
+        run: pnpm exec tauri android build --apk --target aarch64 --ci
 
-      - name: Collect APK artifacts
-        run: |
-          set -euo pipefail
-          mkdir -p release-artifacts
-          found=()
-          while IFS= read -r -d '' apk; do
-            found+=("$apk")
-            cp "$apk" "release-artifacts/$(basename "$apk")"
-          done < <(find src-tauri/gen/android -type f -name "*.apk" -print0)
-
-          if [[ "${#found[@]}" -eq 0 ]]; then
-            echo "No APK found under src-tauri/gen/android" >&2
-            find src-tauri/gen/android -type f | sort || true
-            exit 1
-          fi
-
-          ls -lh release-artifacts
+      - name: Collect APK and verify 16 KB ELF alignment
+        run: bash scripts/verify-android-apk.sh
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
