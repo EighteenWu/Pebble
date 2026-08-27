@@ -165,9 +165,14 @@ export default function InboxView() {
           {threadView ? <List size={16} /> : <MessageSquare size={16} />}
         </button>
       </div>
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div
+        className="mail-split-shell"
+        data-has-selection={detailOpen}
+        style={{ display: "flex", flex: 1, minHeight: 0 }}
+      >
         {/* List panel */}
         <div
+          className="mail-list-pane"
           style={{
             width: detailOpen ? "clamp(260px, 32%, 360px)" : "100%",
             flexShrink: 0,
@@ -200,7 +205,7 @@ export default function InboxView() {
 
         {/* Detail panel */}
         {detailOpen && (
-          <div style={{ flex: 1, overflow: "hidden" }}>
+          <div className="mail-detail-pane" style={{ flex: 1, overflow: "hidden" }}>
             {threadView && selectedThreadId ? (
               <ThreadView />
             ) : selectedMessageId ? (

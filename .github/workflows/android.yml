@@ -1,0 +1,114 @@
+name: Android APK
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  apk:
+    name: Build sideload APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # setup-android@v3 passes `packages` as a single sdkmanager argument list.
+      # A YAML multiline block becomes one package name with embedded newlines
+      # (`Failed to find package 'platform-tools\nplatforms;android-34...'`).
+      # Keep this a space-separated string. Versions match Gradle compileSdk 36.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
+          packages: platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018
+
+      - name: Export NDK location for Tauri
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "$sdk_root" ]]; then
+            echo "ANDROID_SDK_ROOT / ANDROID_HOME is not set on the runner" >&2
+            env | sort
+            exit 1
+          fi
+          ndk_dir="${sdk_root}/ndk/27.2.12479018"
+          if [[ ! -d "$ndk_dir" ]]; then
+            echo "NDK directory missing: $ndk_dir" >&2
+            ls -la "${sdk_root}/ndk" || true
+            exit 1
+          fi
+          {
+            echo "ANDROID_HOME=${sdk_root}"
+            echo "ANDROID_SDK_ROOT=${sdk_root}"
+            echo "NDK_HOME=${ndk_dir}"
+            echo "ANDROID_NDK_HOME=${ndk_dir}"
+          } >> "$GITHUB_ENV"
+          echo "Using SDK=${sdk_root}"
+          echo "Using NDK=${ndk_dir}"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Android Keystore helpers
+        run: |
+          mkdir -p src-tauri/gen/android/app/src/main/java/com/qingj01/pebble
+          cp src-tauri/android-support/*.kt src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
+
+      - name: Build Android APK
+        run: pnpm exec tauri android build --debug --apk --target aarch64 --ci
+
+      - name: Collect APK artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          found=()
+          while IFS= read -r -d '' apk; do
+            found+=("$apk")
+            cp "$apk" "release-artifacts/$(basename "$apk")"
+          done < <(find src-tauri/gen/android -type f -name "*.apk" -print0)
+
+          if [[ "${#found[@]}" -eq 0 ]]; then
+            echo "No APK found under src-tauri/gen/android" >&2
+            find src-tauri/gen/android -type f | sort || true
+            exit 1
+          fi
+
+          ls -lh release-artifacts
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pebble-android-apk
+          path: release-artifacts/*.apk
+          if-no-files-found: error

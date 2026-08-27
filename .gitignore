@@ -15,8 +15,8 @@ docs/
 *.key
 *.p12
 
-# Tauri generated
-src-tauri/gen/
+# Tauri generated schemas (android project is committed)
+src-tauri/gen/schemas/
 
 # IDE
 .idea/

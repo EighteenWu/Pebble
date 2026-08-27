@@ -41,6 +41,7 @@
 
 html, body, #root {
   height: 100%;
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -52,6 +53,18 @@ html, body, #root {
   position: relative;
   background: var(--color-main-bg);
   isolation: isolate;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mobile-topbar {
+  display: none;
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .app-background-layer {
@@ -1711,6 +1724,97 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--color-danger) 7%, transparent);
   color: var(--color-danger);
   font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .mail-split-shell[data-has-selection="true"] .mail-list-pane,
+  .mail-split-shell[data-has-selection="false"] .mail-detail-pane {
+    display: none !important;
+  }
+
+  .mail-split-shell[data-has-selection="true"] .mail-detail-pane {
+    flex: 1;
+    width: 100%;
+  }
+
+  .mail-split-shell .mail-list-pane {
+    width: 100% !important;
+    border-right: none !important;
+  }
+
+  .inbox-toolbar-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .inbox-toolbar-search {
+    flex: 1 1 100%;
+  }
+}
+
+.app-shell[data-platform="android"] .mobile-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  background: var(--color-titlebar-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.app-shell[data-platform="android"] .mobile-topbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.app-shell[data-platform="android"] .mobile-topbar-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.app-shell[data-platform="android"] .sidebar-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.app-shell[data-platform="android"] .sidebar-pane {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  height: 100% !important;
+  width: min(280px, 86vw) !important;
+  transform: translateX(-100%);
+  transition: transform 180ms ease;
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.18);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.app-shell[data-platform="android"] .sidebar-pane[data-open="true"] {
+  transform: translateX(0);
+}
+
+.app-shell[data-platform="android"] {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
+}
+
+.app-shell[data-platform="android"] .compose-fab,
+.app-shell[data-platform="android"] .toast-stack {
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
 }
 
 @media (max-width: 760px) {

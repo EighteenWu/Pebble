@@ -20,7 +20,7 @@
   <a href="https://github.com/QingJ01/Pebble/releases"><img src="https://img.shields.io/github/v/release/QingJ01/Pebble?style=flat-square&color=d4714e" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/QingJ01/Pebble/actions"><img src="https://img.shields.io/github/actions/workflow/status/QingJ01/Pebble/ci.yml?style=flat-square&label=build" alt="Build"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20sideload-lightgrey?style=flat-square" alt="Platform">
 </p>
 
 ## 项目简介
@@ -170,6 +170,37 @@ macOS 构建产物默认不签名，除非你自行配置签名流程。
 sudo xattr -cr /Applications/Pebble.app
 ```
 
+### Android（侧载 APK）
+
+第二阶段提供可侧载的 Android APK，不是 Play Store / AAB 发布。
+
+需要 Rust stable、JDK 17+、Android SDK platform 36、NDK 27，以及 Android Rust target。设备 DEK 通过 JNI 助手 `PebbleKeystore` 写入 Android Keystore；桌面 `keyring` 3 没有 Android 后端。
+
+```bash
+pnpm install
+# src-tauri/gen/android/ 已提交。只有空树才需要重新 init：
+# pnpm tauri android init --ci
+# 然后把 src-tauri/android-support/*.kt 复制到
+# src-tauri/gen/android/app/src/main/java/com/qingj01/pebble/
+pnpm dev:android
+pnpm build:android
+# 手机侧载可只编 arm64：pnpm exec tauri android build --apk --target aarch64
+```
+
+侧载：
+
+```bash
+# 调试签名 APK（最容易侧载）：
+pnpm exec tauri android build --debug --apk --target aarch64
+adb install -r src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+# `pnpm build:android` 产出的 release APK 未签名，安装前需要签名，或改用上面的 debug 构建。
+```
+
+当前可用：IMAP（以及桌面已有的 POP3）添加账户、打开应用同步、阅读、发送，以及基础通知。桌面 S3 保险库同步和 WebDAV 保持在桌面端。
+
+本阶段不做：Gmail/Outlook OAuth（按钮仍在，失败是预期行为）、Custom Tabs、Play 上架、Android S3 云同步、IMAP IDLE 长轮询。请用 IMAP 或 POP3 应用密码。
+
 ## OAuth 配置
 
 Pebble 可以通过 OAuth 连接 Gmail 和 Outlook。IMAP 账户使用应用内配置的 IMAP/SMTP 凭据。
@@ -195,6 +226,8 @@ Pebble 可以通过 OAuth 连接 Gmail 和 Outlook。IMAP 账户使用应用内�
 | `pnpm build:windows` | 构建 Windows NSIS 安装包。 |
 | `pnpm build:macos` | 构建未签名的 macOS `.app` 和 `.dmg` 包。 |
 | `pnpm build:linux` | 构建 Linux `.AppImage`、`.deb` 和 `.rpm` 包。 |
+| `pnpm dev:android` | 在设备或模拟器上运行 Tauri Android 应用。 |
+| `pnpm build:android` | 构建侧载 APK（不是 Play / AAB）。 |
 | `cargo test -p pebble-mail` | 运行邮件模块测试。 |
 | `cargo check` | 检查 Rust 工作区。 |
 

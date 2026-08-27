@@ -17,6 +17,7 @@ export default function ComposeFAB() {
       onClick={() => openCompose("new")}
       aria-label={t("sidebar.compose", "Compose")}
       title={t("sidebar.compose", "Compose")}
+      className="compose-fab"
       style={{
         position: "fixed",
         bottom: "48px",

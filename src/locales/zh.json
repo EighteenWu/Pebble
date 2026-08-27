@@ -551,6 +551,7 @@
     "signInGoogle": "使用 Google 账号登录",
     "signInOutlook": "使用 Outlook 账号登录",
     "orManual": "或手动添加账户",
+    "oauthAndroidHint": "Android 侧载版尚未接入 Gmail / Outlook OAuth，请使用 IMAP 或 POP3。点击 Google / Microsoft 按钮会按预期失败。",
     "adding": "正在添加账户…",
     "submit": "添加账户并同步",
     "testConnection": "测试连接",

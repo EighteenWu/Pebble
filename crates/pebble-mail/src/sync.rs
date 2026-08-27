@@ -2008,7 +2008,13 @@ impl SyncWorker {
         );
         reconcile_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-        let supports_idle = self.provider.inner().supports_idle().await;
+        // Android Phase 2 uses open-app / polling sync only. Do not keep a
+        // long-lived IMAP IDLE connection on mobile.
+        let supports_idle = if cfg!(target_os = "android") {
+            false
+        } else {
+            self.provider.inner().supports_idle().await
+        };
         if supports_idle {
             info!("IMAP IDLE supported for account {}", self.base.account_id);
             self.base

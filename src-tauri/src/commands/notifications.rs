@@ -6,9 +6,12 @@ use tauri::image::Image;
 use tauri::{AppHandle, Manager, Runtime, State};
 #[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
+#[cfg(desktop)]
 use tracing::warn;
 
+#[cfg(desktop)]
 const TRAY_DEFAULT_TOOLTIP: &str = "Pebble";
+#[cfg(desktop)]
 const TRAY_ATTENTION_TOOLTIP: &str = "Pebble - New mail";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -46,7 +49,16 @@ fn notification_platform() -> &'static str {
     {
         "linux"
     }
-    #[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "linux")))]
+    #[cfg(target_os = "android")]
+    {
+        "android"
+    }
+    #[cfg(all(
+        not(windows),
+        not(target_os = "macos"),
+        not(target_os = "linux"),
+        not(target_os = "android")
+    ))]
     {
         "desktop"
     }
@@ -223,6 +235,7 @@ fn set_attention_indicator<R: Runtime>(app: &AppHandle<R>, active: bool) {
         }
     }
 
+    #[cfg(desktop)]
     if let Some(tray) = app.tray_by_id("main") {
         if let Some(default_icon) = app.default_window_icon() {
             let icon = if active {
@@ -241,6 +254,11 @@ fn set_attention_indicator<R: Runtime>(app: &AppHandle<R>, active: bool) {
             TRAY_DEFAULT_TOOLTIP
         };
         let _ = tray.set_tooltip(Some(tooltip));
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
     }
 }
 

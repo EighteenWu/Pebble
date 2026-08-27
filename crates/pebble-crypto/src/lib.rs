@@ -2,6 +2,9 @@ pub mod aes;
 pub mod keystore;
 pub mod passphrase;
 
+#[cfg(target_os = "android")]
+mod android_keystore;
+
 use pebble_core::Result;
 use zeroize::{Zeroize, Zeroizing};
 

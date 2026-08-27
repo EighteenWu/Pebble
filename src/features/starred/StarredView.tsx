@@ -124,8 +124,12 @@ export default function StarredView() {
   }
 
   return (
-    <div className="fade-in" style={{ display: "flex", height: "100%" }}>
-      <div style={{
+    <div
+      className="fade-in mail-split-shell"
+      data-has-selection={Boolean(scopedSelectedId)}
+      style={{ display: "flex", height: "100%" }}
+    >
+      <div className="mail-list-pane" style={{
         width: scopedSelectedId ? "340px" : "100%",
         borderRight: scopedSelectedId ? "1px solid var(--color-border)" : "none",
         display: "flex",
@@ -206,7 +210,7 @@ export default function StarredView() {
       </div>
 
       {scopedSelectedId && (
-        <div className="scroll-region starred-detail-scroll" style={{ flex: 1, overflow: "auto" }}>
+        <div className="scroll-region starred-detail-scroll mail-detail-pane" style={{ flex: 1, overflow: "auto" }}>
           <MessageDetail
             messageId={scopedSelectedId}
             onBack={() => setSelectedId(null)}

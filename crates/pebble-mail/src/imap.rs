@@ -12,6 +12,7 @@ use serde::de::Deserializer;
 use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+#[cfg(not(target_os = "android"))]
 use tokio_native_tls as async_native_tls;
 use tokio_rustls::client::TlsStream;
 use tracing::debug;
@@ -265,6 +266,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for PrefixedStream<T> {
 /// `match self.session { Tls(_) => ..., Plain(_) => ... }` duplication.
 enum InnerStream {
     Tls(Box<TlsStream<TcpStream>>),
+    #[cfg(not(target_os = "android"))]
     NativeTls(Box<async_native_tls::TlsStream<TcpStream>>),
     Plain(TcpStream),
 }
@@ -273,6 +275,7 @@ impl std::fmt::Debug for InnerStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InnerStream::Tls(_) => f.debug_struct("InnerStream::Tls").finish(),
+            #[cfg(not(target_os = "android"))]
             InnerStream::NativeTls(_) => f.debug_struct("InnerStream::NativeTls").finish(),
             InnerStream::Plain(_) => f.debug_struct("InnerStream::Plain").finish(),
         }
@@ -287,6 +290,7 @@ impl AsyncRead for InnerStream {
     ) -> Poll<io::Result<()>> {
         match self.get_mut() {
             InnerStream::Tls(s) => Pin::new(s.as_mut()).poll_read(cx, buf),
+            #[cfg(not(target_os = "android"))]
             InnerStream::NativeTls(s) => Pin::new(s.as_mut()).poll_read(cx, buf),
             InnerStream::Plain(s) => Pin::new(s).poll_read(cx, buf),
         }
@@ -301,6 +305,7 @@ impl AsyncWrite for InnerStream {
     ) -> Poll<io::Result<usize>> {
         match self.get_mut() {
             InnerStream::Tls(s) => Pin::new(s.as_mut()).poll_write(cx, buf),
+            #[cfg(not(target_os = "android"))]
             InnerStream::NativeTls(s) => Pin::new(s.as_mut()).poll_write(cx, buf),
             InnerStream::Plain(s) => Pin::new(s).poll_write(cx, buf),
         }
@@ -309,6 +314,7 @@ impl AsyncWrite for InnerStream {
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             InnerStream::Tls(s) => Pin::new(s.as_mut()).poll_flush(cx),
+            #[cfg(not(target_os = "android"))]
             InnerStream::NativeTls(s) => Pin::new(s.as_mut()).poll_flush(cx),
             InnerStream::Plain(s) => Pin::new(s).poll_flush(cx),
         }
@@ -317,6 +323,7 @@ impl AsyncWrite for InnerStream {
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             InnerStream::Tls(s) => Pin::new(s.as_mut()).poll_shutdown(cx),
+            #[cfg(not(target_os = "android"))]
             InnerStream::NativeTls(s) => Pin::new(s.as_mut()).poll_shutdown(cx),
             InnerStream::Plain(s) => Pin::new(s).poll_shutdown(cx),
         }
@@ -403,6 +410,7 @@ async fn tls_connect(
 }
 
 /// Build a native-tls connector (delegates to OS TLS: SChannel/SecureTransport/OpenSSL).
+#[cfg(not(target_os = "android"))]
 fn build_native_tls_connector(
     accept_invalid_certs: bool,
 ) -> Result<async_native_tls::TlsConnector> {
@@ -420,6 +428,7 @@ fn build_native_tls_connector(
 
 /// Perform a TLS handshake using native-tls (OS TLS backend) on the given TCP stream.
 /// Used as fallback when rustls fails (e.g. servers that only offer DHE cipher suites).
+#[cfg(not(target_os = "android"))]
 async fn native_tls_connect(
     host: &str,
     tcp: TcpStream,
@@ -687,9 +696,20 @@ impl ImapProvider {
 
         // TLS upgrade
         let inner = if use_native_tls {
-            let tls = native_tls_connect(&self.config.host, tcp, self.config.accept_invalid_certs)
-                .await?;
-            InnerStream::NativeTls(Box::new(tls))
+            #[cfg(target_os = "android")]
+            {
+                let _ = tcp;
+                return Err(PebbleError::Network(
+                    "native-tls is not available on Android; rustls is required".into(),
+                ));
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                let tls =
+                    native_tls_connect(&self.config.host, tcp, self.config.accept_invalid_certs)
+                        .await?;
+                InnerStream::NativeTls(Box::new(tls))
+            }
         } else {
             let tls = tls_connect(&self.config.host, tcp, self.config.accept_invalid_certs).await?;
             InnerStream::Tls(Box::new(tls))
@@ -767,23 +787,32 @@ impl ImapProvider {
                 {
                     Ok(tls) => InnerStream::Tls(Box::new(tls)),
                     Err(rustls_err) => {
-                        debug!(
-                            "rustls handshake failed ({}), retrying with native-tls",
-                            rustls_err
-                        );
-                        let tcp = self.tcp_connect().await?;
-                        let tls = native_tls_connect(
-                            &self.config.host,
-                            tcp,
-                            self.config.accept_invalid_certs,
-                        )
+                        #[cfg(target_os = "android")]
+                        {
+                            return Err(PebbleError::Network(format!(
+                                "TLS failed (rustls): {rustls_err}"
+                            )));
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            debug!(
+                                "rustls handshake failed ({}), retrying with native-tls",
+                                rustls_err
+                            );
+                            let tcp = self.tcp_connect().await?;
+                            let tls = native_tls_connect(
+                                &self.config.host,
+                                tcp,
+                                self.config.accept_invalid_certs,
+                            )
                             .await
                             .map_err(|e| {
                                 PebbleError::Network(format!(
                                     "TLS failed with both backends — rustls: {rustls_err}, native-tls: {e}"
                                 ))
                             })?;
-                        InnerStream::NativeTls(Box::new(tls))
+                            InnerStream::NativeTls(Box::new(tls))
+                        }
                     }
                 };
 
@@ -810,18 +839,25 @@ impl ImapProvider {
                 match self.connect_starttls(tcp, needs_id, false).await {
                     Ok(session) => session,
                     Err(rustls_err) => {
-                        debug!(
-                            "STARTTLS with rustls failed ({}), retrying with native-tls",
-                            rustls_err
-                        );
-                        let tcp = self.tcp_connect().await?;
-                        self.connect_starttls(tcp, needs_id, true)
-                            .await
-                            .map_err(|native_err| {
-                                PebbleError::Network(format!(
-                                    "STARTTLS failed with both TLS backends — rustls: {rustls_err}, native-tls: {native_err}"
-                                ))
-                            })?
+                        #[cfg(target_os = "android")]
+                        {
+                            return Err(rustls_err);
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            debug!(
+                                "STARTTLS with rustls failed ({}), retrying with native-tls",
+                                rustls_err
+                            );
+                            let tcp = self.tcp_connect().await?;
+                            self.connect_starttls(tcp, needs_id, true)
+                                .await
+                                .map_err(|native_err| {
+                                    PebbleError::Network(format!(
+                                        "STARTTLS failed with both TLS backends — rustls: {rustls_err}, native-tls: {native_err}"
+                                    ))
+                                })?
+                        }
                     }
                 }
             }
@@ -904,6 +940,7 @@ impl ImapProvider {
         };
 
         // Helper: reconnect TCP for TLS fallback (no report, just the socket)
+        #[cfg(not(target_os = "android"))]
         let reconnect_tcp = |config: &ImapConfig| {
             let addr_clone = addr.clone();
             let proxy = config.proxy.clone();
@@ -978,37 +1015,46 @@ impl ImapProvider {
                     Ok(Err(rustls_err)) => {
                         report
                             .push_str(&format!("TLS handshake (rustls): FAILED — {rustls_err}\n"));
-                        let tcp = reconnect_tcp(config).await?;
-                        let t_ntls = Instant::now();
-                        let mut tls = tokio::time::timeout(
-                            std::time::Duration::from_secs(10),
-                            native_tls_connect(&config.host, tcp, config.accept_invalid_certs),
-                        )
-                        .await
-                        .map_err(|_| {
-                            PebbleError::Network("native-tls handshake timed out (10s)".into())
-                        })??;
-                        report.push_str(&format!(
-                            "TLS handshake (native-tls fallback): OK ({:.0}ms)\n",
-                            t_ntls.elapsed().as_millis()
-                        ));
-                        let t2 = Instant::now();
-                        let mut buf = vec![0u8; 4096];
-                        let n = tokio::time::timeout(
-                            std::time::Duration::from_secs(10),
-                            tls.read(&mut buf),
-                        )
-                        .await
-                        .map_err(|_| {
-                            PebbleError::Network("Read IMAP greeting timed out (10s)".into())
-                        })?
-                        .map_err(|e| PebbleError::Network(format!("Read greeting: {e}")))?;
-                        let greeting = String::from_utf8_lossy(&buf[..n]);
-                        report.push_str(&format!(
-                            "IMAP greeting ({:.0}ms): {}\n",
-                            t2.elapsed().as_millis(),
-                            greeting.trim()
-                        ));
+                        #[cfg(target_os = "android")]
+                        {
+                            return Err(PebbleError::Network(format!(
+                                "TLS handshake (rustls): FAILED — {rustls_err}"
+                            )));
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            let tcp = reconnect_tcp(config).await?;
+                            let t_ntls = Instant::now();
+                            let mut tls = tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                native_tls_connect(&config.host, tcp, config.accept_invalid_certs),
+                            )
+                            .await
+                            .map_err(|_| {
+                                PebbleError::Network("native-tls handshake timed out (10s)".into())
+                            })??;
+                            report.push_str(&format!(
+                                "TLS handshake (native-tls fallback): OK ({:.0}ms)\n",
+                                t_ntls.elapsed().as_millis()
+                            ));
+                            let t2 = Instant::now();
+                            let mut buf = vec![0u8; 4096];
+                            let n = tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                tls.read(&mut buf),
+                            )
+                            .await
+                            .map_err(|_| {
+                                PebbleError::Network("Read IMAP greeting timed out (10s)".into())
+                            })?
+                            .map_err(|e| PebbleError::Network(format!("Read greeting: {e}")))?;
+                            let greeting = String::from_utf8_lossy(&buf[..n]);
+                            report.push_str(&format!(
+                                "IMAP greeting ({:.0}ms): {}\n",
+                                t2.elapsed().as_millis(),
+                                greeting.trim()
+                            ));
+                        }
                     }
                     Err(_) => {
                         return Err(PebbleError::Network("TLS handshake timed out (10s)".into()));
@@ -1077,50 +1123,61 @@ impl ImapProvider {
                         report.push_str(&format!(
                             "TLS upgrade (STARTTLS, rustls): FAILED — {rustls_err}\n"
                         ));
-                        // Reconnect and redo STARTTLS with native-tls
-                        let tcp = reconnect_tcp(config).await?;
-                        let mut tcp = tcp;
-                        // Re-read greeting (discard)
-                        let mut discard = vec![0u8; 4096];
-                        let _ = tokio::time::timeout(
-                            std::time::Duration::from_secs(10),
-                            tcp.read(&mut discard),
-                        )
-                        .await
-                        .map_err(|_| PebbleError::Network("Read greeting timed out (10s)".into()))?
-                        .map_err(|e| PebbleError::Network(format!("Read greeting: {e}")))?;
-                        // Re-send STARTTLS
-                        tcp.write_all(b"A001 STARTTLS\r\n")
+                        #[cfg(target_os = "android")]
+                        {
+                            return Err(PebbleError::Network(format!(
+                                "TLS upgrade (STARTTLS, rustls): FAILED — {rustls_err}"
+                            )));
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            // Reconnect and redo STARTTLS with native-tls
+                            let tcp = reconnect_tcp(config).await?;
+                            let mut tcp = tcp;
+                            // Re-read greeting (discard)
+                            let mut discard = vec![0u8; 4096];
+                            let _ = tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                tcp.read(&mut discard),
+                            )
                             .await
-                            .map_err(|e| PebbleError::Network(format!("Send STARTTLS: {e}")))?;
-                        tcp.flush()
+                            .map_err(|_| {
+                                PebbleError::Network("Read greeting timed out (10s)".into())
+                            })?
+                            .map_err(|e| PebbleError::Network(format!("Read greeting: {e}")))?;
+                            // Re-send STARTTLS
+                            tcp.write_all(b"A001 STARTTLS\r\n")
+                                .await
+                                .map_err(|e| PebbleError::Network(format!("Send STARTTLS: {e}")))?;
+                            tcp.flush()
+                                .await
+                                .map_err(|e| PebbleError::Network(format!("Flush: {e}")))?;
+                            let mut resp2 = vec![0u8; 4096];
+                            let _ = tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                tcp.read(&mut resp2),
+                            )
                             .await
-                            .map_err(|e| PebbleError::Network(format!("Flush: {e}")))?;
-                        let mut resp2 = vec![0u8; 4096];
-                        let _ = tokio::time::timeout(
-                            std::time::Duration::from_secs(10),
-                            tcp.read(&mut resp2),
-                        )
-                        .await
-                        .map_err(|_| {
-                            PebbleError::Network("STARTTLS response timed out (10s)".into())
-                        })?
-                        .map_err(|e| {
-                            PebbleError::Network(format!("Read STARTTLS response: {e}"))
-                        })?;
-                        let t4 = Instant::now();
-                        tokio::time::timeout(
-                            std::time::Duration::from_secs(10),
-                            native_tls_connect(&config.host, tcp, config.accept_invalid_certs),
-                        )
-                        .await
-                        .map_err(|_| {
-                            PebbleError::Network("native-tls upgrade timed out (10s)".into())
-                        })??;
-                        report.push_str(&format!(
-                            "TLS upgrade (STARTTLS, native-tls fallback): OK ({:.0}ms)\n",
-                            t4.elapsed().as_millis()
-                        ));
+                            .map_err(|_| {
+                                PebbleError::Network("STARTTLS response timed out (10s)".into())
+                            })?
+                            .map_err(|e| {
+                                PebbleError::Network(format!("Read STARTTLS response: {e}"))
+                            })?;
+                            let t4 = Instant::now();
+                            tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                native_tls_connect(&config.host, tcp, config.accept_invalid_certs),
+                            )
+                            .await
+                            .map_err(|_| {
+                                PebbleError::Network("native-tls upgrade timed out (10s)".into())
+                            })??;
+                            report.push_str(&format!(
+                                "TLS upgrade (STARTTLS, native-tls fallback): OK ({:.0}ms)\n",
+                                t4.elapsed().as_millis()
+                            ));
+                        }
                     }
                     Err(_) => {
                         return Err(PebbleError::Network("TLS upgrade timed out (10s)".into()));
@@ -2059,9 +2116,9 @@ pub fn folder_sort_order(role: &Option<FolderRole>) -> i32 {
 
 #[cfg(test)]
 mod tls_config_tests {
-    use super::{
-        build_native_tls_connector, build_tls_connector, imap_timeout_error, ImapConfig, SmtpConfig,
-    };
+    #[cfg(not(target_os = "android"))]
+    use super::build_native_tls_connector;
+    use super::{build_tls_connector, imap_timeout_error, ImapConfig, SmtpConfig};
 
     #[test]
     fn build_tls_connector_returns_result() {
@@ -2069,6 +2126,7 @@ mod tls_config_tests {
         assert!(build_tls_connector(true).is_ok());
     }
 
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn build_native_tls_connector_returns_result() {
         assert!(build_native_tls_connector(false).is_ok());

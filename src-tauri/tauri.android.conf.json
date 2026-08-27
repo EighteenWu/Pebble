@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.qingj01.pebble",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pebble",
+        "fullscreen": false,
+        "resizable": true,
+        "visible": true,
+        "backgroundColor": "#1a1a1a"
+      }
+    ]
+  }
+}

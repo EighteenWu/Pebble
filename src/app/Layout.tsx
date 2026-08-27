@@ -22,6 +22,7 @@ import { useNotificationOpenNavigation } from "./useNotificationOpenNavigation";
 import { useCloseToBackground } from "./useCloseToBackground";
 import { useTrayI18n } from "./useTrayI18n";
 import { useMailtoOpen } from "./useMailtoOpen";
+import { useVisualViewportInset } from "./useVisualViewportInset";
 import { S3VaultConflictListener } from "./useS3VaultConflict";
 import AppBackground from "./AppBackground";
 
@@ -55,6 +56,8 @@ import { WifiOff } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { setNotificationsEnabled as setBackendNotificationsEnabled, syncTitlebarTheme } from "@/lib/api";
+import { isAndroidRuntime, isDesktopShell, platformAttr } from "@/lib/platform";
+import { Menu } from "lucide-react";
 
 export default function Layout() {
   const activeView = useUIStore((s) => s.activeView);
@@ -64,6 +67,10 @@ export default function Layout() {
   const theme = useUIStore((s) => s.theme);
   const backgroundImage = useUIStore((s) => s.backgroundImage);
   const notificationsEnabled = useUIStore((s) => s.notificationsEnabled);
+  const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const android = isAndroidRuntime();
+  const desktop = isDesktopShell();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
@@ -83,6 +90,7 @@ export default function Layout() {
   useCloseToBackground();
   useTrayI18n();
   useMailtoOpen();
+  useVisualViewportInset();
 
   // Re-register commands when language changes
   useEffect(() => {
@@ -115,24 +123,51 @@ export default function Layout() {
 
   useEffect(() => {
     applyThemeToDom(theme);
-    syncTitlebarTheme(resolveTheme(theme)).catch(() => {});
+    if (desktop) {
+      syncTitlebarTheme(resolveTheme(theme)).catch(() => {});
+    }
     if (theme === "system") {
       const mql = window.matchMedia("(prefers-color-scheme: dark)");
       const listener = () => {
         applyThemeToDom("system");
-        syncTitlebarTheme(resolveTheme("system")).catch(() => {});
+        if (desktop) {
+          syncTitlebarTheme(resolveTheme("system")).catch(() => {});
+        }
       };
       mql.addEventListener("change", listener);
       return () => mql.removeEventListener("change", listener);
     }
-  }, [theme]);
+  }, [theme, desktop]);
 
   return (
     <div
       className={`app-shell flex flex-col h-screen overflow-hidden${backgroundImage ? " app-shell--with-background" : ""}`}
+      data-platform={platformAttr()}
     >
       <AppBackground image={backgroundImage} />
-      <TitleBar />
+      {desktop && <TitleBar />}
+      {android && (
+        <header className="mobile-topbar">
+          <button
+            type="button"
+            className="mobile-topbar-button"
+            aria-label={t("sidebar.navigation", "Sidebar")}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+          >
+            <Menu size={20} />
+          </button>
+          <span className="mobile-topbar-title">Pebble</span>
+        </header>
+      )}
+      {android && mobileNavOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label={t("common.close", "Close")}
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
       <div className="flex flex-1 min-h-0 app-shell-content">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-auto scroll-region app-main-scroll" style={{ position: "relative" }}>
@@ -153,7 +188,7 @@ export default function Layout() {
       </div>
       <ComposeFAB />
       <StatusBar />
-      <CommandPalette />
+      {desktop && <CommandPalette />}
       <ToastContainer />
       <GlobalConfirmDialog />
       <S3VaultConflictListener />

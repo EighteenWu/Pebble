@@ -12,6 +12,7 @@ describe("UIStore", () => {
   beforeEach(() => {
     useUIStore.setState({
       sidebarCollapsed: false,
+      mobileNavOpen: false,
       activeView: "inbox",
       theme: "light",
       language: "en",

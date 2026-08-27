@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUIStore } from "@/stores/ui.store";
 import { startSync } from "@/lib/api";
 import { useAccountsQuery } from "@/hooks/queries";
+import { isDesktopShell } from "@/lib/platform";
 
 export function useCloseToBackground() {
   const { data: accounts } = useAccountsQuery();
@@ -10,6 +11,9 @@ export function useCloseToBackground() {
   const realtimeMode = useUIStore((s) => s.realtimeMode);
 
   useEffect(() => {
+    if (!isDesktopShell()) {
+      return;
+    }
     const appWindow = getCurrentWindow();
     let unlisten: (() => void) | undefined;
     let disposed = false;

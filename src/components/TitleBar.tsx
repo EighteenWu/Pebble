@@ -4,11 +4,15 @@ import iconUrl from "@/assets/app-icon.png";
 import { isComposeDirty } from "@/stores/compose.store";
 import { useConfirmStore } from "@/stores/confirm.store";
 import i18n from "@/lib/i18n";
+import { isAndroidRuntime } from "@/lib/platform";
 
 const isMac = navigator.userAgent.includes("Macintosh");
 
 export default function TitleBar() {
   const { t } = useTranslation();
+  if (isAndroidRuntime()) {
+    return null;
+  }
   const appWindow = getCurrentWindow();
 
   async function handleCloseWindow() {

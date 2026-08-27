@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore } from "../stores/ui.store";
+import { isAndroidRuntime } from "@/lib/platform";
 import { isComposeDirty, useComposeStore } from "../stores/compose.store";
 import { useConfirmStore } from "../stores/confirm.store";
 import { useMailStore } from "../stores/mail.store";
@@ -60,6 +61,9 @@ export default function Sidebar() {
   const activeView = useUIStore((s) => s.activeView);
   const setActiveView = useUIStore((s) => s.setActiveView);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
+  const closeMobileNav = useUIStore((s) => s.closeMobileNav);
+  const android = isAndroidRuntime();
   const activeFolderId = useMailStore((s) => s.activeFolderId);
   const activeAccountId = useMailStore((s) => s.activeAccountId);
   const setActiveAccountId = useMailStore((s) => s.setActiveAccountId);
@@ -135,9 +139,11 @@ export default function Sidebar() {
       const confirmed = await confirmDiscardDraft();
       if (!confirmed) return;
       useComposeStore.getState().discardComposeAndSetActiveView(view);
+      closeMobileNav();
       return;
     }
     setActiveView(view);
+    closeMobileNav();
   }
 
   async function handleFolderClick(folderId: string) {
@@ -146,10 +152,12 @@ export default function Sidebar() {
       if (!confirmed) return;
       useComposeStore.getState().discardComposeAndSetActiveView("inbox");
       setActiveFolderId(folderId);
+      closeMobileNav();
       return;
     }
     setActiveView("inbox");
     setActiveFolderId(folderId);
+    closeMobileNav();
   }
 
   const buttonBase: React.CSSProperties = {
@@ -168,6 +176,8 @@ export default function Sidebar() {
 
   return (
     <aside
+      className="sidebar-pane"
+      data-open={mobileNavOpen}
       aria-label={t("sidebar.navigation", "Sidebar")}
       style={{
         width: sidebarCollapsed ? "48px" : "200px",
@@ -349,14 +359,16 @@ export default function Sidebar() {
           style={buttonBase}
           onClick={() => safeSetActiveView("snoozed")}
         />
-        <SidebarButton
-          icon={<LayoutGrid size={16} />}
-          label={t("sidebar.kanban", "Kanban")}
-          isActive={activeView === "kanban"}
-          collapsed={sidebarCollapsed}
-          style={buttonBase}
-          onClick={() => safeSetActiveView("kanban")}
-        />
+        {!android && (
+          <SidebarButton
+            icon={<LayoutGrid size={16} />}
+            label={t("sidebar.kanban", "Kanban")}
+            isActive={activeView === "kanban"}
+            collapsed={sidebarCollapsed}
+            style={buttonBase}
+            onClick={() => safeSetActiveView("kanban")}
+          />
+        )}
         <SidebarButton
           icon={<Settings size={16} />}
           label={t("sidebar.settings", "Settings")}

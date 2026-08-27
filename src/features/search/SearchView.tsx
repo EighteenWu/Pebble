@@ -153,11 +153,15 @@ export default function SearchView() {
       )}
 
       {/* Results + Detail split layout */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div
+        className="mail-split-shell"
+        data-has-selection={Boolean(selectedId)}
+        style={{ display: "flex", flex: 1, overflow: "hidden" }}
+      >
         {/* Results list */}
         <div
           ref={resultsParentRef}
-          className="scroll-region search-results-scroll"
+          className="scroll-region search-results-scroll mail-list-pane"
           style={{
             width: selectedId ? "clamp(260px, 32%, 360px)" : "100%",
             flexShrink: 0,
@@ -293,7 +297,7 @@ export default function SearchView() {
 
         {/* Detail panel */}
         {selectedId && (
-          <div style={{ flex: 1, overflow: "hidden" }}>
+          <div className="mail-detail-pane" style={{ flex: 1, overflow: "hidden" }}>
             <MessageDetail
               messageId={selectedId}
               onBack={() => setSelectedId(null)}
