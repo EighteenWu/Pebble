@@ -244,7 +244,7 @@ fn set_tray_menu_labels(
         let tray = app
             .tray_by_id("main")
             .ok_or_else(|| "tray icon is not initialized".to_string())?;
-        return tray.set_menu(Some(menu)).map_err(|e| e.to_string());
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())
     }
 
     #[cfg(not(desktop))]

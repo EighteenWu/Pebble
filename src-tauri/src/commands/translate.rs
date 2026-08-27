@@ -16,8 +16,14 @@ fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, PebbleError> {
             "Invalid hex string length".to_string(),
         ));
     }
-    bytes
-        .chunks_exact(2)
+    let (pairs, remainder) = bytes.as_chunks::<2>();
+    if !remainder.is_empty() {
+        return Err(PebbleError::Internal(
+            "Invalid hex string length".to_string(),
+        ));
+    }
+    pairs
+        .iter()
         .map(|pair| {
             let high = hex_nibble(pair[0])
                 .ok_or_else(|| PebbleError::Internal("Invalid hex digit".to_string()))?;

@@ -20,7 +20,7 @@ pub fn open_url(url: &str) -> Result<(), String> {
             &[JValue::Object(&context), JValue::Object(&jurl)],
         )
         .map_err(|e| format!("openUrl: {e}"))?;
-        throw_if_exception(env).map_err(|_| "Android could not open the URL".into())?;
+        throw_if_exception(env).map_err(|_| "Android could not open the URL".to_string())?;
         Ok(())
     })
 }
