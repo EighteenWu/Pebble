@@ -189,11 +189,11 @@ pnpm build:android
 # 手机侧载可只编 arm64：pnpm exec tauri android build --apk --target aarch64
 ```
 
-从 Actions 侧载（推荐）：
+侧载预发布 APK（在 Cursor 云主机上编译，不走 Actions）：
 
-1. 打开 **Android APK** workflow，下载 artifact `pebble-android-apk`。
-2. 解压后只装 `app-universal-release.apk`，不要装多余 ABI 的 APK。
-3. 手机上允许未知来源安装后打开该 APK。
+1. 从 `android-sideload-xiaomi` 预发布下载 [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-xiaomi/app-universal-release.apk)。
+2. 手机上允许未知来源后打开该 APK。
+3. 应先出现 **Pebble starting** Toast。若仍闪退，再打开应用可在启动页看到 `pebble-crash.log`（也在 `Android/data/com.qingj01.pebble/files/`）。
 
 ```bash
 pnpm exec tauri android build --apk --target aarch64

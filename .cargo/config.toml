@@ -7,22 +7,28 @@
 rustflags = [
     "-C", "link-arg=-Wl,-z,max-page-size=16384",
     "-C", "link-arg=-Wl,-z,common-page-size=16384",
+    # Workspace release uses panic=abort. catch_unwind in run() needs unwind
+    # on Android so a plugin/builder panic can write pebble-crash.log + UI.
+    "-C", "panic=unwind",
 ]
 
 [target.armv7-linux-androideabi]
 rustflags = [
     "-C", "link-arg=-Wl,-z,max-page-size=16384",
     "-C", "link-arg=-Wl,-z,common-page-size=16384",
+    "-C", "panic=unwind",
 ]
 
 [target.x86_64-linux-android]
 rustflags = [
     "-C", "link-arg=-Wl,-z,max-page-size=16384",
     "-C", "link-arg=-Wl,-z,common-page-size=16384",
+    "-C", "panic=unwind",
 ]
 
 [target.i686-linux-android]
 rustflags = [
     "-C", "link-arg=-Wl,-z,max-page-size=16384",
     "-C", "link-arg=-Wl,-z,common-page-size=16384",
+    "-C", "panic=unwind",
 ]

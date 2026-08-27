@@ -187,11 +187,11 @@ pnpm build:android        # debug-signed release APKs under src-tauri/gen/androi
 # faster phone sideload: pnpm exec tauri android build --apk --target aarch64
 ```
 
-Sideload from Actions (recommended):
+Sideload the pre-release APK (built on the Cursor cloud VM, not Actions):
 
-1. Open the **Android APK** workflow on the PR / `master` and download artifact `pebble-android-apk`.
-2. Unzip it. Install the single APK (`app-universal-release.apk`) — do not install leftover ABI APKs.
-3. On the phone: allow install from the browser/file manager, then open the APK.
+1. Download [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-xiaomi/app-universal-release.apk) from the `android-sideload-xiaomi` pre-release.
+2. On the phone: allow install from the browser/file manager, then open the APK.
+3. You should see a **Pebble starting** toast. If it still dies, reopen the app — the launch screen shows `pebble-crash.log` (also under `Android/data/com.qingj01.pebble/files/`).
 
 ```bash
 # Same artifact locally (release Rust, debug keystore, aarch64 only):

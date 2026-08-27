@@ -45,7 +45,9 @@ android {
             // Sideload without a Play upload keystore. CI and local
             // `tauri android build --apk` produce an installable APK.
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = true
+            // Sideload APK: R8 + JNI/reflection plugins can ClassNotFound
+            // before any dialog on HyperOS. Play minify stays a later step.
+            isMinifyEnabled = false
             isJniDebuggable = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

@@ -12,6 +12,8 @@ mod state;
 
 use serde::Serialize;
 use state::AppState;
+#[cfg_attr(not(target_os = "android"), allow(unused_imports))]
+use std::any::Any;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -66,12 +68,57 @@ fn surface_setup_error(error: impl std::fmt::Display) -> Box<dyn std::error::Err
     tracing::error!("[startup] {message}");
     #[cfg(target_os = "android")]
     {
+        let _ = android_open::write_startup_log(&format!("setup error: {message}"));
         if let Err(surface_error) = android_open::show_startup_error(&message) {
             eprintln!("[startup] failed to show Android error UI: {surface_error}");
             tracing::error!("[startup] failed to show Android error UI: {surface_error}");
         }
     }
     message.into()
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "unknown panic".to_string()
+    }
+}
+
+#[cfg(target_os = "android")]
+fn register_deferred_android_plugins(app: &tauri::App) {
+    fn try_plugin<R: tauri::Runtime, P: tauri::plugin::Plugin<R> + 'static>(
+        app: &tauri::AppHandle<R>,
+        name: &str,
+        init: impl FnOnce() -> P,
+    ) {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| app.plugin(init()))) {
+            Ok(Ok(())) => {
+                tracing::info!("[startup] {name} plugin registered after first window");
+                let _ = android_open::write_startup_log(&format!("{name} plugin registered"));
+            }
+            Ok(Err(error)) => {
+                let message = format!("{name} plugin failed (non-fatal): {error}");
+                tracing::error!("[startup] {message}");
+                let _ = android_open::write_startup_log(&message);
+            }
+            Err(payload) => {
+                let message = format!(
+                    "{name} plugin panicked (non-fatal): {}",
+                    panic_payload_message(payload.as_ref())
+                );
+                tracing::error!("[startup] {message}");
+                let _ = android_open::write_startup_log(&message);
+            }
+        }
+    }
+
+    let handle = app.handle();
+    try_plugin(handle, "deep-link", tauri_plugin_deep_link::init);
+    try_plugin(handle, "notification", tauri_plugin_notification::init);
 }
 
 fn log_startup_phase(start: Instant, phase_start: &mut Instant, label: &'static str) {
@@ -275,6 +322,29 @@ fn should_prefer_wayland(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "android")]
+    {
+        let _ = android_open::write_startup_log("mobile_entry_point run() started");
+        android_open::install_panic_hook();
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run_inner)) {
+            Ok(()) => {}
+            Err(payload) => {
+                let message = format!(
+                    "Pebble crashed while starting: {}",
+                    panic_payload_message(payload.as_ref())
+                );
+                let _ = android_open::write_startup_log(&message);
+                let _ = android_open::show_startup_error(&message);
+            }
+        }
+        return;
+    }
+
+    #[cfg(not(target_os = "android"))]
+    run_inner();
+}
+
+fn run_inner() {
     // Prefer native Wayland when a Wayland compositor is available.
     //
     // Two cases:
@@ -312,9 +382,14 @@ pub fn run() {
         ));
     }
 
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_deep_link::init())
+            .plugin(tauri_plugin_notification::init());
+    }
+
     let run_result = builder
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_notification::init())
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, WindowEvent::Focused(true)) {
                 commands::notifications::clear_attention_indicator(window.app_handle());
@@ -553,6 +628,15 @@ pub fn run() {
                 startup_start.elapsed().as_millis()
             );
 
+            // Deep-link / notification Android plugins can abort on HyperOS
+            // during Builder::plugin setup, before the first window exists.
+            // Register them only after the rest of setup succeeded.
+            #[cfg(target_os = "android")]
+            {
+                let _ = android_open::write_startup_log("tauri setup complete; registering optional plugins");
+                register_deferred_android_plugins(app);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -699,6 +783,7 @@ pub fn run() {
         tracing::error!("{message}");
         #[cfg(target_os = "android")]
         {
+            let _ = android_open::write_startup_log(&message);
             let _ = android_open::show_startup_error(&message);
             return;
         }
@@ -774,11 +859,27 @@ mod startup_timing_tests {
         }
         assert!(open.contains("load_app_class"));
         assert!(open.contains("show_startup_error"));
+        assert!(open.contains("write_startup_log"));
+        assert!(open.contains("install_panic_hook"));
+        assert!(open.contains("com.qingj01.pebble.PebbleCrash"));
         assert!(keystore.contains("com.qingj01.pebble.PebbleKeystore"));
         assert!(
             !keystore.contains("find_class"),
             "FindClass on a native thread uses the system classloader"
         );
         assert!(!open.contains("find_class"));
+    }
+
+    #[test]
+    fn android_run_catches_unwinds_and_defers_plugins() {
+        let lib = include_str!("lib.rs");
+        assert!(lib.contains("catch_unwind"));
+        assert!(lib.contains("mobile_entry_point run() started"));
+        assert!(lib.contains("register_deferred_android_plugins"));
+        assert!(lib.contains("registering optional plugins"));
+        assert!(
+            lib.contains("#[cfg(desktop)]") && lib.contains("tauri_plugin_deep_link::init()"),
+            "desktop still registers deep-link on the builder"
+        );
     }
 }

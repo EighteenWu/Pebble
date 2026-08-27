@@ -68,6 +68,69 @@ describe("Tauri Android config", () => {
     expect(readFileSync(keystore, "utf8")).toContain("AndroidKeyStore");
     expect(readFileSync(intents, "utf8")).toContain("showStartupError");
     expect(readFileSync(manifest, "utf8")).toContain("POST_NOTIFICATIONS");
+    expect(readFileSync(manifest, "utf8")).toContain('android:name=".PebbleApp"');
+    expect(readFileSync(manifest, "utf8")).toContain("PebbleLaunchActivity");
+
+    const pebbleCrash = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleCrash.kt",
+    );
+    const pebbleApp = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleApp.kt",
+    );
+    const launch = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "PebbleLaunchActivity.kt",
+    );
+    const mainActivity = resolve(
+      androidRoot,
+      "app",
+      "src",
+      "main",
+      "java",
+      "com",
+      "qingj01",
+      "pebble",
+      "MainActivity.kt",
+    );
+    expect(existsSync(pebbleApp)).toBe(true);
+    expect(existsSync(pebbleCrash)).toBe(true);
+    expect(existsSync(launch)).toBe(true);
+    expect(readFileSync(pebbleApp, "utf8")).toContain("Pebble starting");
+    expect(readFileSync(pebbleApp, "utf8")).toContain("setDefaultUncaughtExceptionHandler");
+    expect(readFileSync(pebbleCrash, "utf8")).toContain("pebble-crash.log");
+    expect(readFileSync(launch, "utf8")).toContain("PebbleLaunchActivity");
+    expect(readFileSync(launch, "utf8")).toContain("MainActivity");
+
+    const mainSource = readFileSync(mainActivity, "utf8");
+    const superOnCreate = mainSource.indexOf("super.onCreate(savedInstanceState)");
+    const edgeToEdge = mainSource.lastIndexOf("enableEdgeToEdge()");
+    expect(superOnCreate).toBeGreaterThan(-1);
+    expect(edgeToEdge).toBeGreaterThan(-1);
+    expect(superOnCreate).toBeLessThan(edgeToEdge);
+    expect(mainSource).toContain("PebbleCrash");
 
     const gradle = readFileSync(resolve(androidRoot, "app", "build.gradle.kts"), "utf8");
     expect(gradle).toContain('rootDirRel = "../../../../"');
@@ -110,6 +173,7 @@ describe("Tauri Android config", () => {
 
     expect(cargoConfig).toContain("max-page-size=16384");
     expect(cargoConfig).toContain("common-page-size=16384");
+    expect(cargoConfig).toContain("panic=unwind");
     expect(buildRs).toContain("max-page-size=16384");
     expect(verify).toContain("16384");
     expect(verify).toContain("llvm-readelf");

@@ -1,3 +1,10 @@
+# Sideload / JNI / reflection. Keep the app package and Tauri plugin
+# classes so R8 cannot turn a missing method into a HyperOS silent kill.
+-keep class com.qingj01.pebble.** { *; }
+-keepclassmembers class com.qingj01.pebble.** { *; }
+-keep class app.tauri.** { *; }
+-keepclassmembers class app.tauri.** { *; }
+
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.

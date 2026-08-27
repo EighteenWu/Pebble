@@ -27,6 +27,7 @@ object PebbleIntents {
     @JvmStatic
     fun showStartupError(context: Context, message: String) {
         Log.e(TAG, "startup error: $message")
+        PebbleCrash.append(context, "startup error: $message")
         val app = context.applicationContext
         val activity = context as? Activity
         Handler(Looper.getMainLooper()).post {

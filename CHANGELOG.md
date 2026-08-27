@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Fixed Android 15 / 16 KB-page startup on devices such as Xiaomi 15 Ultra: ELF LOAD alignment is 16384, JNI loads `PebbleKeystore` through the app classloader, setup failures show a Toast instead of a silent native abort, and the sideload APK ships a stripped release `.so` instead of a 200–300 MB debug library.
+- Stopped HyperOS silent force-close before `setup()`: `PebbleApp` writes `pebble-crash.log` and shows a "Pebble starting" Toast, a plain launch Activity runs before Tauri/WebView, `MainActivity` calls `super.onCreate` before a guarded `enableEdgeToEdge()`, Rust `run()` catch_unwind writes the same log, and deep-link/notification plugins register only after setup.
 
 ### Added
 
