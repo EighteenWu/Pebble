@@ -173,6 +173,9 @@ interface UIState {
   setSearchQuery: (q: string) => void;
   settingsTab: SettingsTab;
   setSettingsTab: (tab: SettingsTab) => void;
+  settingsSectionOpen: boolean;
+  openSettingsSection: (tab: SettingsTab) => void;
+  closeSettingsSection: () => void;
   pendingRuleDraftText: string | null;
   setPendingRuleDraftText: (text: string | null) => void;
   showFolderUnreadCount: boolean;
@@ -328,6 +331,12 @@ export const useUIStore = create<UIState>((set) => ({
     profileSessionStorage.setItem("pebble-settings-tab", tab);
     set({ settingsTab: tab });
   },
+  settingsSectionOpen: false,
+  openSettingsSection: (tab) => {
+    profileSessionStorage.setItem("pebble-settings-tab", tab);
+    set({ settingsTab: tab, settingsSectionOpen: true });
+  },
+  closeSettingsSection: () => set({ settingsSectionOpen: false }),
   pendingRuleDraftText: null,
   setPendingRuleDraftText: (text) => set({ pendingRuleDraftText: text }),
   showFolderUnreadCount: profileLocalStorage.getItem("pebble-show-unread-count") === "true",

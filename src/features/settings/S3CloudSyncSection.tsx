@@ -20,6 +20,9 @@ import {
   type VaultSyncResult,
 } from "../../lib/api";
 import { extractErrorMessage as errorMessage } from "@/lib/extractErrorMessage";
+import { formatS3VaultError } from "@/lib/s3VaultError";
+import { useToastStore } from "@/stores/toast.store";
+import { useUIStore } from "@/stores/ui.store";
 
 const labelStyle: React.CSSProperties = {
   ...baseLabelStyle,
@@ -110,6 +113,7 @@ function describeResult(
 export default function S3CloudSyncSection() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const addToast = useToastStore((s) => s.addToast);
   const [config, setConfig] = useState<S3SyncConfig>(emptyConfig);
   const [loaded, setLoaded] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
@@ -131,6 +135,17 @@ export default function S3CloudSyncSection() {
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
+
+  const passphraseMismatch = t(
+    "cloudSync.s3PassphraseMismatch",
+    "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
+  );
+  function vaultError(err: unknown, wrapKey: string) {
+    return formatS3VaultError(err, {
+      mismatch: passphraseMismatch,
+      wrap: (raw) => t(wrapKey, { error: raw }),
+    });
+  }
 
   const busy = testing || saving || syncing || restoring;
   const credentialsReady = Boolean(
@@ -164,6 +179,10 @@ export default function S3CloudSyncSection() {
     if (described.conflict) setConflict(described.conflict);
     if (result.status === "pulled") {
       void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["folders"] });
+      useUIStore.getState().closeSettingsSection();
+      useUIStore.getState().setActiveView("inbox");
     }
   }
 
@@ -236,7 +255,8 @@ export default function S3CloudSyncSection() {
       await saveS3SyncConfig({ ...config, enabled: config.enabled });
       applyResult(await syncS3Vault());
     } catch (err: unknown) {
-      setStatusMsg(t("cloudSync.s3SyncFailed", { error: errorMessage(err) }));
+      const message = vaultError(err, "cloudSync.s3SyncFailed");
+      setStatusMsg(message);
       setStatusType("error");
     } finally {
       setSyncing(false);
@@ -250,8 +270,10 @@ export default function S3CloudSyncSection() {
       await saveS3SyncConfig(config);
       applyResult(await restoreS3Vault());
     } catch (err: unknown) {
-      setStatusMsg(t("cloudSync.s3RestoreFailed", { error: errorMessage(err) }));
+      const message = vaultError(err, "cloudSync.s3RestoreFailed");
+      setStatusMsg(message);
       setStatusType("error");
+      addToast({ message, type: "error" });
     } finally {
       setRestoring(false);
     }
@@ -263,7 +285,7 @@ export default function S3CloudSyncSection() {
     try {
       applyResult(await resolveS3VaultConflict(choice));
     } catch (err: unknown) {
-      setStatusMsg(t("cloudSync.s3SyncFailed", { error: errorMessage(err) }));
+      setStatusMsg(vaultError(err, "cloudSync.s3SyncFailed"));
       setStatusType("error");
     } finally {
       setSyncing(false);
@@ -280,7 +302,7 @@ export default function S3CloudSyncSection() {
   if (!loaded) return null;
 
   return (
-    <div style={{ marginTop: "28px", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
+    <div className="s3-sync-section" style={{ marginTop: "28px", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
       <h2
         style={{
           fontSize: "18px",
@@ -494,7 +516,7 @@ export default function S3CloudSyncSection() {
         </p>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "12px" }}>
+      <div className="s3-actions" style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "12px" }}>
         <button
           type="button"
           style={{ ...buttonStyle, background: "var(--color-accent)", color: "#fff", opacity: busy ? 0.6 : 1 }}

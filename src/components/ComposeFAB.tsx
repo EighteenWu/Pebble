@@ -10,7 +10,10 @@ export default function ComposeFAB() {
   const openCompose = useComposeStore((s) => s.openCompose);
   const selectedMessageId = useMailStore((s) => s.selectedMessageId);
 
-  if (activeView === "compose" || selectedMessageId) return null;
+  const selectedThreadId = useMailStore((s) => s.selectedThreadId);
+  if (activeView === "compose" || activeView === "settings" || selectedMessageId || selectedThreadId) {
+    return null;
+  }
 
   return (
     <button

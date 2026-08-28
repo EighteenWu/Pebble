@@ -393,7 +393,7 @@ export default function CloudSyncTab() {
   }
 
   return (
-    <div>
+    <div className="settings-form-stack">
       <h2
         style={{
           fontSize: "18px",

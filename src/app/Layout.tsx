@@ -23,6 +23,7 @@ import { useCloseToBackground } from "./useCloseToBackground";
 import { useTrayI18n } from "./useTrayI18n";
 import { useMailtoOpen } from "./useMailtoOpen";
 import { useVisualViewportInset } from "./useVisualViewportInset";
+import { useAndroidBackNavigation } from "./useAndroidBackNavigation";
 import { S3VaultConflictListener } from "./useS3VaultConflict";
 import AppBackground from "./AppBackground";
 
@@ -57,7 +58,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { setNotificationsEnabled as setBackendNotificationsEnabled, syncTitlebarTheme } from "@/lib/api";
 import { isAndroidRuntime, isDesktopShell, platformAttr } from "@/lib/platform";
-import { Menu } from "lucide-react";
+import { ArrowLeft, Menu, Settings } from "lucide-react";
 
 export default function Layout() {
   const activeView = useUIStore((s) => s.activeView);
@@ -69,6 +70,9 @@ export default function Layout() {
   const notificationsEnabled = useUIStore((s) => s.notificationsEnabled);
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const closeMobileNav = useUIStore((s) => s.closeMobileNav);
+  const closeSettingsSection = useUIStore((s) => s.closeSettingsSection);
+  const settingsSectionOpen = useUIStore((s) => s.settingsSectionOpen);
   const android = isAndroidRuntime();
   const desktop = isDesktopShell();
   const { t } = useTranslation();
@@ -91,6 +95,7 @@ export default function Layout() {
   useTrayI18n();
   useMailtoOpen();
   useVisualViewportInset();
+  useAndroidBackNavigation();
 
   // Re-register commands when language changes
   useEffect(() => {
@@ -148,16 +153,57 @@ export default function Layout() {
       {desktop && <TitleBar />}
       {android && (
         <header className="mobile-topbar">
-          <button
-            type="button"
-            className="mobile-topbar-button"
-            aria-label={t("sidebar.navigation", "Sidebar")}
-            aria-expanded={mobileNavOpen}
-            onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          >
-            <Menu size={20} />
-          </button>
+          {activeView === "settings" && !settingsSectionOpen ? (
+            <button
+              type="button"
+              className="mobile-topbar-button"
+              aria-label={t("common.back", "Back")}
+              onClick={() => {
+                closeSettingsSection();
+                closeMobileNav();
+                setActiveView("inbox");
+              }}
+            >
+              <ArrowLeft size={20} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="mobile-topbar-button"
+              aria-label={t("sidebar.navigation", "Sidebar")}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            >
+              <Menu size={20} />
+            </button>
+          )}
           <span className="mobile-topbar-title">Pebble</span>
+          {activeView === "settings" && !settingsSectionOpen ? (
+            <button
+              type="button"
+              className="mobile-topbar-button mobile-topbar-settings"
+              aria-label={t("sidebar.navigation", "Sidebar")}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            >
+              <Menu size={20} />
+            </button>
+          ) : activeView === "settings" ? (
+            <span className="mobile-topbar-button mobile-topbar-settings" aria-hidden="true" />
+          ) : (
+            <button
+              type="button"
+              className="mobile-topbar-button mobile-topbar-settings"
+              aria-label={t("sidebar.settings", "Settings")}
+              onClick={() => {
+                closeSettingsSection();
+                closeMobileNav();
+                setActiveView("settings");
+              }}
+            >
+              <Settings size={20} />
+            </button>
+          )}
         </header>
       )}
       {android && mobileNavOpen && (

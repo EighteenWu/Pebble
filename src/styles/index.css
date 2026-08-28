@@ -1778,8 +1778,40 @@ textarea:focus-visible {
 }
 
 .app-shell[data-platform="android"] .mobile-topbar-title {
+  flex: 1;
   font-size: 16px;
   font-weight: 600;
+}
+
+.app-shell[data-platform="android"] .mobile-topbar-settings {
+  margin-left: auto;
+}
+
+.inbox-welcome-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(320px, calc(100% - 32px));
+  margin-top: 8px;
+}
+
+.inbox-welcome-button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inbox-welcome-button--primary {
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
 }
 
 .app-shell[data-platform="android"] .sidebar-backdrop {
@@ -1797,7 +1829,8 @@ textarea:focus-visible {
   left: 0;
   z-index: 40;
   height: 100% !important;
-  width: min(280px, 86vw) !important;
+  width: min(320px, 80vw) !important;
+  max-width: 80vw;
   transform: translateX(-100%);
   transition: transform 180ms ease;
   box-shadow: 8px 0 24px rgba(0, 0, 0, 0.18);
@@ -1815,6 +1848,159 @@ textarea:focus-visible {
 .app-shell[data-platform="android"] .compose-fab,
 .app-shell[data-platform="android"] .toast-stack {
   bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
+}
+
+.app-shell[data-platform="android"] .toast-stack {
+  left: 12px;
+  right: 12px;
+}
+
+.app-shell[data-platform="android"] .toast-stack > div {
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.app-shell[data-platform="android"] .app-statusbar {
+  min-height: 36px;
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.app-shell[data-platform="android"] .mail-split-shell[data-has-selection="true"] .mail-list-pane,
+.app-shell[data-platform="android"] .mail-split-shell[data-has-selection="false"] .mail-detail-pane {
+  display: none !important;
+}
+
+.app-shell[data-platform="android"] .mail-split-shell[data-has-selection="true"] .mail-detail-pane {
+  flex: 1;
+  width: 100%;
+}
+
+.app-shell[data-platform="android"] .mail-split-shell .mail-list-pane {
+  width: 100% !important;
+  border-right: none !important;
+}
+
+.settings-mobile-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+}
+
+.settings-mobile-list-title {
+  margin: 0;
+  padding: 18px 16px 8px;
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.settings-mobile-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 24px;
+}
+
+.settings-mobile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 16px;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-mobile-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.settings-mobile-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.settings-mobile-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.settings-mobile-section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.settings-mobile-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-shell[data-platform="android"] .settings-panel-scroll {
+  padding: 16px !important;
+  max-width: none !important;
+}
+
+.app-shell[data-platform="android"] .s3-sync-section,
+.app-shell[data-platform="android"] .settings-form-stack {
+  max-width: none;
+}
+
+.app-shell[data-platform="android"] .settings-form-stack > h2:first-of-type {
+  display: none;
+}
+
+.app-shell[data-platform="android"] .s3-sync-section input,
+.app-shell[data-platform="android"] .s3-sync-section select,
+.app-shell[data-platform="android"] .settings-form-stack input,
+.app-shell[data-platform="android"] .settings-form-stack select,
+.app-shell[data-platform="android"] .settings-form-stack textarea {
+  width: 100%;
+  min-height: 44px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.app-shell[data-platform="android"] .s3-actions,
+.app-shell[data-platform="android"] .s3-sync-section [role="alertdialog"] > div:last-child {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.app-shell[data-platform="android"] .s3-actions button,
+.app-shell[data-platform="android"] .s3-sync-section button {
+  min-height: 44px;
+  width: 100%;
+}
+
+.app-shell[data-platform="android"] .compose-form-shell {
+  max-width: none;
+  padding: 0 12px 24px;
 }
 
 @media (max-width: 760px) {

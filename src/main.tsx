@@ -8,11 +8,13 @@ import "./styles/index.css";
 
 async function bootstrap() {
   logStartupTiming("frontend entry loaded");
-  await initializeProfileStorageNamespace();
-  await import("@/lib/i18n");
+  // Profile namespace IPC cannot return until Tauri setup() finishes.
+  // Do not gate first paint on it — scoped storage resolves lazily.
+  void initializeProfileStorageNamespace();
   const [{ default: App }, { showMainWindow }] = await Promise.all([
     import("./App"),
     import("@/lib/showMainWindow"),
+    import("@/lib/i18n"),
   ]);
 
   void showMainWindow();

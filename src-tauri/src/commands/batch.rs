@@ -497,11 +497,11 @@ pub async fn batch_delete(
     let delete_ids: Vec<String> = ids_to_delete.clone();
     let _ = state.store.add_search_pending(&delete_ids, "remove");
     for id in &ids_to_delete {
-        if let Err(e) = state.search.remove_message(id) {
+        if let Err(e) = state.search()?.remove_message(id) {
             warn!("Failed to remove deleted message {id} from search index: {e}");
         }
     }
-    if let Err(e) = state.search.commit() {
+    if let Err(e) = state.search()?.commit() {
         warn!("Failed to commit search index after batch delete: {e}");
     }
     let _ = state.store.clear_search_pending(&delete_ids);

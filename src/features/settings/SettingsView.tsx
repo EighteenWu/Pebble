@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import { isAndroidRuntime } from "@/lib/platform";
 import { useUIStore, type SettingsTab } from "@/stores/ui.store";
 import AccountsTab from "./AccountsTab";
 import GeneralTab from "./GeneralTab";
@@ -13,6 +16,7 @@ import PrivacyTab from "./PrivacyTab";
 import AboutTab from "./AboutTab";
 
 const TAB_IDS = ["accounts", "general", "proxy", "appearance", "privacy", "rules", "remoteWrites", "translation", "shortcuts", "cloudSync", "about"] as const;
+const ANDROID_HIDDEN_TABS = new Set<SettingsTab>(["shortcuts"]);
 
 const TAB_LABEL_KEYS: Record<string, string> = {
   accounts: "settings.accounts",
@@ -28,18 +32,108 @@ const TAB_LABEL_KEYS: Record<string, string> = {
   about: "settings.about",
 };
 
+function visibleTabIds(android: boolean): readonly SettingsTab[] {
+  return android ? TAB_IDS.filter((id) => !ANDROID_HIDDEN_TABS.has(id)) : TAB_IDS;
+}
+
+function SettingsTabBody({ activeTab }: { activeTab: SettingsTab }) {
+  return (
+    <>
+      {activeTab === "accounts" && <AccountsTab />}
+      {activeTab === "general" && <GeneralTab />}
+      {activeTab === "proxy" && <ProxyTab />}
+      {activeTab === "appearance" && <AppearanceTab />}
+      {activeTab === "rules" && <RulesTab />}
+      {activeTab === "remoteWrites" && <PendingOpsTab />}
+      {activeTab === "translation" && <TranslateTab />}
+      {activeTab === "shortcuts" && <ShortcutsTab />}
+      {activeTab === "privacy" && <PrivacyTab />}
+      {activeTab === "cloudSync" && <CloudSyncTab />}
+      {activeTab === "about" && <AboutTab />}
+    </>
+  );
+}
+
 export default function SettingsView() {
   const { t } = useTranslation();
+  const android = isAndroidRuntime();
   const activeTab = useUIStore((s) => s.settingsTab);
   const setSettingsTab = useUIStore((s) => s.setSettingsTab);
+  const openSettingsSection = useUIStore((s) => s.openSettingsSection);
+  const closeSettingsSection = useUIStore((s) => s.closeSettingsSection);
+  const sectionOpen = useUIStore((s) => s.settingsSectionOpen);
+  const tabs = visibleTabIds(android);
+  const safeTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
-  function handleTabChange(id: SettingsTab) {
+  useEffect(() => {
+    if (android && ANDROID_HIDDEN_TABS.has(activeTab)) {
+      setSettingsTab("accounts");
+      closeSettingsSection();
+    }
+  }, [android, activeTab, closeSettingsSection, setSettingsTab]);
+
+  function handleDesktopTabChange(id: SettingsTab) {
     setSettingsTab(id);
+  }
+
+  if (android && !sectionOpen) {
+    return (
+      <div className="settings-mobile-list">
+        <h1 className="settings-mobile-list-title">
+          {t("settings.title", "Settings")}
+        </h1>
+        <nav aria-label={t("settings.tabs", "Settings tabs")} className="settings-mobile-nav">
+          {tabs.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="settings-mobile-row"
+              onClick={() => openSettingsSection(id)}
+            >
+              <span>{t(TAB_LABEL_KEYS[id])}</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+      </div>
+    );
+  }
+
+  if (android) {
+    return (
+      <div className="settings-mobile-section">
+        <header className="settings-mobile-section-header">
+          <button
+            type="button"
+            className="settings-mobile-back"
+            aria-label={t("common.back", "Back")}
+            onClick={() => closeSettingsSection()}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="settings-mobile-section-title">{t(TAB_LABEL_KEYS[safeTab])}</h1>
+        </header>
+        <div
+          id={`settings-tabpanel-${safeTab}`}
+          className="scroll-region settings-panel-scroll settings-mobile-panel"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "16px",
+            maxWidth: "none",
+            boxSizing: "border-box",
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
+        >
+          <SettingsTabBody activeTab={safeTab} />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
-      {/* Tab sidebar */}
       <div
         role="tablist"
         aria-orientation="vertical"
@@ -59,7 +153,7 @@ export default function SettingsView() {
             aria-selected={activeTab === id}
             aria-controls={`settings-tabpanel-${id}`}
             tabIndex={activeTab === id ? 0 : -1}
-            onClick={() => handleTabChange(id)}
+            onClick={() => handleDesktopTabChange(id)}
             onKeyDown={(e) => {
               let nextIndex = index;
               if (e.key === "ArrowDown") { nextIndex = (index + 1) % TAB_IDS.length; }
@@ -68,7 +162,7 @@ export default function SettingsView() {
               else if (e.key === "End") { nextIndex = TAB_IDS.length - 1; }
               else { return; }
               e.preventDefault();
-              handleTabChange(TAB_IDS[nextIndex]);
+              handleDesktopTabChange(TAB_IDS[nextIndex]);
               document.getElementById(`settings-tab-${TAB_IDS[nextIndex]}`)?.focus();
             }}
             style={{
@@ -90,7 +184,6 @@ export default function SettingsView() {
           </button>
         ))}
       </div>
-      {/* Tab content */}
       <div
         id={`settings-tabpanel-${activeTab}`}
         className="scroll-region settings-panel-scroll"
@@ -106,17 +199,7 @@ export default function SettingsView() {
           overflowX: "hidden",
         }}
       >
-        {activeTab === "accounts" && <AccountsTab />}
-        {activeTab === "general" && <GeneralTab />}
-        {activeTab === "proxy" && <ProxyTab />}
-        {activeTab === "appearance" && <AppearanceTab />}
-        {activeTab === "rules" && <RulesTab />}
-        {activeTab === "remoteWrites" && <PendingOpsTab />}
-        {activeTab === "translation" && <TranslateTab />}
-        {activeTab === "shortcuts" && <ShortcutsTab />}
-        {activeTab === "privacy" && <PrivacyTab />}
-        {activeTab === "cloudSync" && <CloudSyncTab />}
-        {activeTab === "about" && <AboutTab />}
+        <SettingsTabBody activeTab={activeTab} />
       </div>
     </div>
   );

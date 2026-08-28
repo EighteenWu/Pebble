@@ -25,7 +25,8 @@
     "closeNotification": "Close notification",
     "undo": "Undo",
     "confirm": "Confirm",
-    "send": "Send"
+    "send": "Send",
+    "back": "Back"
   },
   "tray": {
     "show": "Show Window",
@@ -57,7 +58,9 @@
     "noSubject": "(no subject)",
     "emailContent": "Email content",
     "welcome": "Welcome to Pebble",
-    "addAccountHint": "Add an email account to get started",
+    "addAccountHint": "Add an email account, or restore the encrypted settings vault from your cloud bucket.",
+    "restoreFromCloud": "Restore from cloud",
+    "openSettings": "Settings",
     "messageView": "Message view",
     "threadView": "Thread view",
     "messageList": "Message list"
@@ -138,6 +141,8 @@
     "mailtoSkippedLinks_other": "Opened the first mail link. {{count}} additional links were skipped."
   },
   "settings": {
+    "title": "Settings",
+    "tabs": "Settings tabs",
     "accounts": "Accounts",
     "general": "General",
     "proxy": "Proxy",
@@ -326,6 +331,7 @@
     "s3ConflictPrompt": "A newer cloud vault conflicts with local changes. Choose Use cloud or Use local.",
     "s3SyncFailed": "Cloud sync failed: {{error}}",
     "s3RestoreFailed": "Cloud restore failed: {{error}}",
+    "s3PassphraseMismatch": "The sync passphrase is wrong. Use the same phrase that encrypted the cloud file on your computer, save, then restore.",
     "s3CredentialsRequired": "Enter endpoint, region, bucket, access key, and secret key before testing or enabling sync."
   },
   "pendingOps": {
@@ -786,6 +792,12 @@
     "title": "Thread",
     "to": "To:",
     "cc": "Cc:"
+  },
+  "startup": {
+    "stillStarting": "Starting…",
+    "cryptoStarting": "Device encryption is still starting. Try again in a moment.",
+    "cryptoFailed": "Could not unlock device encryption. Try again, or restart the app.",
+    "searchStarting": "Search is still starting. Try again in a moment."
   },
   "errorBoundary": {
     "title": "Something went wrong",

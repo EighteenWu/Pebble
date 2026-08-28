@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsView from "../../../src/features/settings/SettingsView";
 import { useUIStore } from "../../../src/stores/ui.store";
 
+const androidRuntime = vi.hoisted(() => ({ value: false }));
+
+vi.mock("../../../src/lib/platform", () => ({
+  isAndroidRuntime: () => androidRuntime.value,
+}));
+
 vi.mock("react-i18next", () => ({
   initReactI18next: {
     type: "3rdParty",
@@ -23,6 +29,8 @@ vi.mock("react-i18next", () => ({
         "settings.cloudSync": "Settings Backup",
         "settings.about": "About",
         "settings.tabs": "Settings tabs",
+        "settings.title": "Settings",
+        "common.back": "Back",
       };
       return labels[key] ?? fallback ?? key;
     },
@@ -75,7 +83,8 @@ vi.mock("../../../src/features/settings/PendingOpsTab", () => ({
 
 describe("SettingsView", () => {
   beforeEach(() => {
-    useUIStore.setState({ settingsTab: "accounts" });
+    androidRuntime.value = false;
+    useUIStore.setState({ settingsTab: "accounts", settingsSectionOpen: false });
   });
 
   it("exposes the pending remote writes queue as a settings tab", () => {
@@ -117,5 +126,32 @@ describe("SettingsView", () => {
     expect(panel.style.overflowY).toBe("auto");
     expect(panel.style.overflowX).toBe("hidden");
     expect(panel.style.boxSizing).toBe("border-box");
+  });
+
+  it("uses a full-width section list on Android instead of a persistent tab rail", () => {
+    androidRuntime.value = true;
+    render(<SettingsView />);
+
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Settings Backup/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Shortcuts" })).toBeNull();
+    expect(screen.queryByText("Accounts panel")).toBeNull();
+  });
+
+  it("opens a settings section full width on Android and returns to the list", () => {
+    androidRuntime.value = true;
+    render(<SettingsView />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Settings Backup/ }));
+
+    expect(screen.getByText("Cloud sync panel")).toBeTruthy();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shortcuts" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.queryByText("Cloud sync panel")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
   });
 });

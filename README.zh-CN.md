@@ -191,7 +191,7 @@ pnpm build:android
 
 侧载预发布 APK（在 Cursor 云主机上编译，不走 Actions）：
 
-1. 从 `android-sideload-xiaomi` 预发布下载 [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-xiaomi/app-universal-release.apk)。
+1. 从 `android-sideload-ui` 预发布下载 [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-ui/app-universal-release.apk)（手机界面 + HyperOS 启动修复）。旧的 `android-sideload-xiaomi` 仍能启动，但设置页还是桌面双栏。
 2. 手机上允许未知来源后打开该 APK。
 3. 应先出现 **Pebble starting** Toast。若仍闪退，再打开应用可在启动页看到 `pebble-crash.log`（也在 `Android/data/com.qingj01.pebble/files/`）。
 

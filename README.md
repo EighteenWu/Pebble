@@ -189,7 +189,7 @@ pnpm build:android        # debug-signed release APKs under src-tauri/gen/androi
 
 Sideload the pre-release APK (built on the Cursor cloud VM, not Actions):
 
-1. Download [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-xiaomi/app-universal-release.apk) from the `android-sideload-xiaomi` pre-release.
+1. Download [app-universal-release.apk](https://github.com/EighteenWu/Pebble/releases/download/android-sideload-ui/app-universal-release.apk) from the `android-sideload-ui` pre-release (phone UI + HyperOS startup fixes). The older `android-sideload-xiaomi` build still launches but keeps the desktop settings split-pane.
 2. On the phone: allow install from the browser/file manager, then open the APK.
 3. You should see a **Pebble starting** toast. If it still dies, reopen the app — the launch screen shows `pebble-crash.log` (also under `Android/data/com.qingj01.pebble/files/`).
 

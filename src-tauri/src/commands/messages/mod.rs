@@ -117,7 +117,7 @@ pub(crate) fn refresh_search_document(
     state: &AppState,
     message_id: &str,
 ) -> std::result::Result<(), PebbleError> {
-    refresh_search_document_with_store(&state.store, &state.search, message_id)
+    refresh_search_document_with_store(&state.store, state.search()?, message_id)
 }
 
 pub(crate) fn refresh_search_document_with_store(
@@ -156,9 +156,9 @@ pub(super) fn remove_search_documents(
     }
     state.store.add_search_pending(message_ids, "remove")?;
     for message_id in message_ids {
-        state.search.remove_message(message_id)?;
+        state.search()?.remove_message(message_id)?;
     }
-    state.search.commit()?;
+    state.search()?.commit()?;
     state.store.clear_search_pending(message_ids)?;
     Ok(())
 }
@@ -180,17 +180,17 @@ pub(crate) fn refresh_search_documents(
             Some(message) if !message.is_deleted => {
                 let folder_ids = state.store.get_message_folder_ids(message_id)?;
                 if folder_ids.is_empty() {
-                    state.search.remove_message(message_id)?;
+                    state.search()?.remove_message(message_id)?;
                 } else {
-                    state.search.index_message(&message, &folder_ids)?;
+                    state.search()?.index_message(&message, &folder_ids)?;
                 }
             }
             Some(_) | None => {
-                state.search.remove_message(message_id)?;
+                state.search()?.remove_message(message_id)?;
             }
         }
     }
-    state.search.commit()?;
+    state.search()?.commit()?;
     state.store.clear_search_pending(message_ids)?;
     Ok(())
 }
@@ -238,7 +238,7 @@ pub(super) async fn connect_imap(
     state: &AppState,
     account_id: &str,
 ) -> std::result::Result<ImapProvider, PebbleError> {
-    let imap_config = load_imap_config(&state.store, &state.crypto, account_id)?;
+    let imap_config = load_imap_config(&state.store, state.crypto()?, account_id)?;
     let provider = ImapProvider::new(imap_config);
     provider.connect().await?;
     Ok(provider)

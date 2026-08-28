@@ -109,6 +109,16 @@ describe("UIStore", () => {
     expect(state.pendingRuleDraftText).toBe("unsubscribe");
   });
 
+  it("opens and closes a settings section without changing desktop tab persistence", () => {
+    useUIStore.getState().openSettingsSection("cloudSync");
+    expect(useUIStore.getState().settingsTab).toBe("cloudSync");
+    expect(useUIStore.getState().settingsSectionOpen).toBe(true);
+
+    useUIStore.getState().closeSettingsSection();
+    expect(useUIStore.getState().settingsTab).toBe("cloudSync");
+    expect(useUIStore.getState().settingsSectionOpen).toBe(false);
+  });
+
   it("keeps the user on compose when dirty and shows confirmation", () => {
     useUIStore.setState({
       activeView: "compose",

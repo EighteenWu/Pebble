@@ -7,6 +7,7 @@ import {
   saveS3SyncConfig,
   testS3Connection,
   syncS3Vault,
+  restoreS3Vault,
   resolveS3VaultConflict,
 } from "../../../src/lib/api";
 
@@ -35,7 +36,10 @@ vi.mock("react-i18next", () => ({
         "cloudSync.s3UseLocal": "Use local",
         "cloudSync.s3ConflictTitle": "Cloud vault conflict",
         "cloudSync.connectionSuccess": "Connection successful",
+        "cloudSync.s3RestoreFailed": "Cloud restore failed: {{error}}",
+        "cloudSync.s3PassphraseMismatch": "同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。",
         "common.saving": "Saving…",
+        "common.loading": "Loading…",
       };
       if (typeof fallback === "object") {
         let value = labels[key] ?? key;
@@ -51,6 +55,23 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
+const ui = vi.hoisted(() => ({
+  closeSettingsSection: vi.fn(),
+  setActiveView: vi.fn(),
+}));
+
+vi.mock("../../../src/stores/toast.store", () => ({
+  useToastStore: (selector: (state: { addToast: ReturnType<typeof vi.fn> }) => unknown) =>
+    selector({ addToast: vi.fn() }),
+}));
+
+vi.mock("../../../src/stores/ui.store", () => ({
+  useUIStore: Object.assign(
+    (selector: (state: typeof ui) => unknown) => selector(ui),
+    { getState: () => ui },
+  ),
 }));
 
 vi.mock("../../../src/lib/api", () => ({
@@ -166,5 +187,47 @@ describe("S3CloudSyncSection", () => {
       expect(testS3Connection).toHaveBeenCalled();
     });
     expect(syncS3Vault).not.toHaveBeenCalled();
+  });
+
+  it("maps AEAD decryption failures to a passphrase hint", async () => {
+    vi.mocked(restoreS3Vault).mockRejectedValue(new Error("Decryption failed: aead::Error"));
+
+    render(<S3CloudSyncSection />);
+    fireEvent.change(await screen.findByLabelText("Endpoint"), {
+      target: { value: "https://abc123.r2.cloudflarestorage.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Bucket"), { target: { value: "vault" } });
+    fireEvent.change(screen.getByLabelText("Access key"), { target: { value: "ak" } });
+    fireEvent.change(screen.getByLabelText("Secret key"), { target: { value: "sk" } });
+    fireEvent.change(screen.getByLabelText("Sync passphrase"), { target: { value: "wrong" } });
+    fireEvent.click(screen.getByRole("button", { name: "Restore from cloud" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("同步口令不对。请填电脑上加密云端文件时用的同一句，先保存再恢复。");
+    expect(alert.textContent).not.toContain("aead::Error");
+  });
+
+  it("leaves the welcome path after a successful vault pull", async () => {
+    vi.mocked(restoreS3Vault).mockResolvedValue({
+      status: "pulled",
+      last_sync_at: 10,
+      revision: 2,
+      message: "restored",
+    });
+
+    render(<S3CloudSyncSection />);
+    fireEvent.change(await screen.findByLabelText("Endpoint"), {
+      target: { value: "https://abc123.r2.cloudflarestorage.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Bucket"), { target: { value: "vault" } });
+    fireEvent.change(screen.getByLabelText("Access key"), { target: { value: "ak" } });
+    fireEvent.change(screen.getByLabelText("Secret key"), { target: { value: "sk" } });
+    fireEvent.change(screen.getByLabelText("Sync passphrase"), { target: { value: "correct horse" } });
+    fireEvent.click(screen.getByRole("button", { name: "Restore from cloud" }));
+
+    await waitFor(() => {
+      expect(ui.setActiveView).toHaveBeenCalledWith("inbox");
+    });
+    expect(ui.closeSettingsSection).toHaveBeenCalled();
   });
 });

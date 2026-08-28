@@ -16,6 +16,16 @@ describe("inbox responsive CSS", () => {
     expect(css).toContain("env(safe-area-inset-top");
     expect(css).toContain("env(safe-area-inset-bottom");
     expect(css).toContain('.app-shell[data-platform="android"] .sidebar-pane');
+    expect(css).toContain("min(320px, 80vw)");
     expect(css).toContain("100dvh");
+  });
+
+  it("stacks mail panes and settings forms on Android regardless of CSS width", () => {
+    expect(css).toContain('.app-shell[data-platform="android"] .mail-split-shell[data-has-selection="true"] .mail-list-pane');
+    expect(css).toContain(".settings-mobile-list");
+    expect(css).toContain(".s3-actions");
+    expect(css).toContain('.app-shell[data-platform="android"] .s3-sync-section');
+    expect(css).toContain(".inbox-welcome-actions");
+    expect(css).toContain(".mobile-topbar-settings");
   });
 });

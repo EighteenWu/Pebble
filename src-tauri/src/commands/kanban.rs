@@ -14,7 +14,7 @@ fn decrypt_json<T: DeserializeOwned>(
     state: &AppState,
     key: &str,
 ) -> Result<Option<T>, PebbleError> {
-    let Some(decrypted) = load_secure_user_data(&state.crypto, &state.store, key)? else {
+    let Some(decrypted) = load_secure_user_data(state.crypto()?, &state.store, key)? else {
         return Ok(None);
     };
     serde_json::from_slice(&decrypted)
@@ -29,13 +29,13 @@ fn encrypt_json_bytes<T: Serialize>(
 ) -> Result<Vec<u8>, PebbleError> {
     let plaintext = serde_json::to_vec(value)
         .map_err(|e| PebbleError::Internal(format!("Failed to serialize secure user data: {e}")))?;
-    encrypt_secure_user_data(&state.crypto, key, &plaintext)
+    encrypt_secure_user_data(state.crypto()?, key, &plaintext)
 }
 
 fn encrypt_json<T: Serialize>(state: &AppState, key: &str, value: &T) -> Result<(), PebbleError> {
     let plaintext = serde_json::to_vec(value)
         .map_err(|e| PebbleError::Internal(format!("Failed to serialize secure user data: {e}")))?;
-    store_secure_user_data(&state.crypto, &state.store, key, &plaintext)
+    store_secure_user_data(state.crypto()?, &state.store, key, &plaintext)
 }
 
 fn normalize_context_notes(notes: HashMap<String, String>) -> HashMap<String, String> {

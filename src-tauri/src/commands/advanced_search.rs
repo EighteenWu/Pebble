@@ -24,7 +24,7 @@ pub async fn advanced_search(
     query: AdvancedSearchQuery,
     limit: Option<usize>,
 ) -> std::result::Result<Vec<SearchHit>, PebbleError> {
-    let search = state.search.clone();
+    let search = state.search_arc()?;
     let limit = limit.unwrap_or(50);
     tokio::task::spawn_blocking(move || {
         search.advanced_search(AdvancedSearchParams {

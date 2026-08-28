@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Layout from "../../src/app/Layout";
 import { useUIStore } from "../../src/stores/ui.store";
@@ -7,11 +7,18 @@ const mocks = vi.hoisted(() => {
   const settingsViewPromise = new Promise<{ default: () => JSX.Element }>(() => {});
   return {
     settingsViewPromise,
+    android: false,
     invalidateQueries: vi.fn(),
     setNotificationsEnabled: vi.fn().mockResolvedValue(undefined),
     syncTitlebarTheme: vi.fn().mockResolvedValue(undefined),
   };
 });
+
+vi.mock("../../src/lib/platform", () => ({
+  isAndroidRuntime: () => mocks.android,
+  isDesktopShell: () => !mocks.android,
+  platformAttr: () => (mocks.android ? "android" : "desktop"),
+}));
 
 vi.mock("react-i18next", () => ({
   initReactI18next: {
@@ -144,6 +151,10 @@ vi.mock("../../src/app/useMailtoOpen", () => ({
   useMailtoOpen: vi.fn(),
 }));
 
+vi.mock("../../src/app/useAndroidBackNavigation", () => ({
+  useAndroidBackNavigation: vi.fn(),
+}));
+
 vi.mock("../../src/hooks/useKeyboard", () => ({
   useKeyboard: vi.fn(),
 }));
@@ -163,11 +174,14 @@ vi.mock("../../src/stores/kanban.store", () => ({
 
 describe("Layout navigation", () => {
   beforeEach(() => {
+    mocks.android = false;
     useUIStore.setState({
       activeView: "inbox",
       theme: "light",
       notificationsEnabled: true,
       networkStatus: "online",
+      mobileNavOpen: false,
+      settingsSectionOpen: false,
     });
   });
 
@@ -181,5 +195,32 @@ describe("Layout navigation", () => {
     expect(screen.getByRole("button", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Loading...")).toBeTruthy();
     expect(screen.queryByText("Inbox panel")).toBeNull();
+  });
+
+  it("exposes a settings gear on the Android header that opens the section list", () => {
+    mocks.android = true;
+    useUIStore.setState({ settingsSectionOpen: true, activeView: "inbox" });
+    render(<Layout />);
+
+    const header = document.querySelector(".mobile-topbar");
+    expect(header).toBeTruthy();
+    fireEvent.click(within(header as HTMLElement).getByRole("button", { name: "Settings" }));
+
+    expect(useUIStore.getState().settingsSectionOpen).toBe(false);
+    expect(useUIStore.getState().activeView).toBe("settings");
+  });
+
+  it("replaces the Android header gear with Back on the settings list", () => {
+    mocks.android = true;
+    useUIStore.setState({ activeView: "settings", settingsSectionOpen: false });
+    render(<Layout />);
+
+    const header = document.querySelector(".mobile-topbar") as HTMLElement;
+    expect(within(header).queryByRole("button", { name: "Settings" })).toBeNull();
+    fireEvent.click(within(header).getByRole("button", { name: "Back" }));
+    expect(useUIStore.getState().activeView).toBe("inbox");
+
+    fireEvent.click(within(header).getByRole("button", { name: "Sidebar" }));
+    expect(useUIStore.getState().mobileNavOpen).toBe(true);
   });
 });

@@ -23,6 +23,8 @@ const EMPTY_THREADS: ThreadSummary[] = [];
 export default function InboxView() {
   const { t } = useTranslation();
   const setActiveView = useUIStore((s) => s.setActiveView);
+  const openSettingsSection = useUIStore((s) => s.openSettingsSection);
+  const closeSettingsSection = useUIStore((s) => s.closeSettingsSection);
   const activeFolderId = useMailStore((s) => s.activeFolderId);
   const activeAccountId = useMailStore((s) => s.activeAccountId);
   const selectedMessageId = useMailStore((s) => s.selectedMessageId);
@@ -85,19 +87,44 @@ export default function InboxView() {
         <p style={{ fontSize: "16px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>
           {t("inbox.welcome", "Welcome to Pebble")}
         </p>
-        <p style={{ fontSize: "13px", margin: 0 }}>
-          {t("inbox.addAccountHint", "Add an email account to get started")}
+        <p style={{ fontSize: "13px", margin: 0, textAlign: "center", maxWidth: "320px", padding: "0 16px" }}>
+          {t(
+            "inbox.addAccountHint",
+            "Add an email account, or restore the encrypted settings vault from your cloud bucket.",
+          )}
         </p>
-        <button
-          onClick={() => setActiveView("settings")}
-          style={{
-            marginTop: "8px", padding: "8px 20px", borderRadius: "6px",
-            border: "none", backgroundColor: "var(--color-accent)", color: "#fff",
-            fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          }}
-        >
-          {t("settings.addAccount", "Add Account")}
-        </button>
+        <div className="inbox-welcome-actions">
+          <button
+            type="button"
+            className="inbox-welcome-button inbox-welcome-button--primary"
+            onClick={() => {
+              openSettingsSection("accounts");
+              setActiveView("settings");
+            }}
+          >
+            {t("settings.addAccount", "Add Account")}
+          </button>
+          <button
+            type="button"
+            className="inbox-welcome-button"
+            onClick={() => {
+              openSettingsSection("cloudSync");
+              setActiveView("settings");
+            }}
+          >
+            {t("inbox.restoreFromCloud", "Restore from cloud")}
+          </button>
+          <button
+            type="button"
+            className="inbox-welcome-button"
+            onClick={() => {
+              closeSettingsSection();
+              setActiveView("settings");
+            }}
+          >
+            {t("inbox.openSettings", "Settings")}
+          </button>
+        </div>
       </div>
     );
   }

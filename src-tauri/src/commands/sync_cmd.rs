@@ -151,7 +151,7 @@ async fn start_sync_inner(
 
     // Channel for newly stored messages — used to populate the search index and emit events
     let (message_tx, mut message_rx) = mpsc::unbounded_channel();
-    let search = Arc::clone(&state.search);
+    let search = state.search_arc()?;
     let store_for_rules = Arc::clone(&state.store);
     let app_for_index = app.clone();
     tokio::spawn(async move {
@@ -412,7 +412,7 @@ fn build_sync_task(
                 gmail_oauth_config(),
                 tokens.refresh_token,
                 tokens.access_token,
-                Arc::clone(&state.crypto),
+                state.crypto_arc()?,
                 Arc::clone(&state.store),
                 Arc::clone(&state.oauth_account_locks),
                 account_id_clone.clone(),
@@ -482,7 +482,7 @@ fn build_sync_task(
                 outlook_oauth_config(),
                 tokens.refresh_token,
                 tokens.access_token,
-                Arc::clone(&state.crypto),
+                state.crypto_arc()?,
                 Arc::clone(&state.store),
                 Arc::clone(&state.oauth_account_locks),
                 account_id_clone.clone(),
@@ -528,7 +528,7 @@ fn build_sync_task(
         ProviderType::Pop3 => {
             let pop3_config = match crate::commands::messages::load_pop3_config(
                 &state.store,
-                &state.crypto,
+                state.crypto()?,
                 &account_id_clone,
             ) {
                 Ok(config) => config,
@@ -591,7 +591,7 @@ fn build_sync_task(
             // --- IMAP path ---
             let imap_config = match crate::commands::messages::load_imap_config(
                 &state.store,
-                &state.crypto,
+                state.crypto()?,
                 &account_id_clone,
             ) {
                 Ok(config) => config,
@@ -804,7 +804,7 @@ pub async fn set_realtime_preference(
 #[tauri::command]
 pub async fn reindex_search(state: State<'_, AppState>) -> std::result::Result<u32, PebbleError> {
     let store = Arc::clone(&state.store);
-    let search = Arc::clone(&state.search);
+    let search = state.search_arc()?;
 
     tokio::task::spawn_blocking(move || indexing::do_reindex(&store, &search))
         .await

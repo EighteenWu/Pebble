@@ -105,6 +105,17 @@ describe("locale files", () => {
     expect(zh.privacy.trackerBlockingOff).not.toBe(en.privacy.trackerBlockingOff);
   });
 
+  it("translates deferred Android startup errors in English and Chinese", () => {
+    const en = readLocale("en");
+    const zh = readLocale("zh");
+
+    expect(en.startup.cryptoStarting).toMatch(/encryption is still starting/);
+    expect(en.startup.cryptoFailed).toMatch(/unlock device encryption/);
+    expect(zh.startup.cryptoStarting).toMatch(/加密服务还在启动/);
+    expect(zh.startup.cryptoFailed).toMatch(/无法解锁设备加密/);
+    expect(zh.startup.searchStarting).not.toBe(en.startup.searchStarting);
+  });
+
   it("translates Android OAuth sideload hints in English and Chinese", () => {
     const en = readLocale("en");
     const zh = readLocale("zh");
