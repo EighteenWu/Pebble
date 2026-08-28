@@ -793,6 +793,12 @@
     "to": "To:",
     "cc": "Cc:"
   },
+  "startup": {
+    "stillStarting": "Starting…",
+    "cryptoStarting": "Device encryption is still starting. Try again in a moment.",
+    "cryptoFailed": "Could not unlock device encryption. Try again, or restart the app.",
+    "searchStarting": "Search is still starting. Try again in a moment."
+  },
   "errorBoundary": {
     "title": "Something went wrong",
     "description": "Please try again or refresh the application.",

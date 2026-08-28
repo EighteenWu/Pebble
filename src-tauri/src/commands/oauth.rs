@@ -391,7 +391,7 @@ fn persist_oauth_tokens(
     account_id: &str,
     tokens: &OAuthTokens,
 ) -> Result<(), PebbleError> {
-    persist_oauth_tokens_raw(&state.crypto, &state.store, account_id, tokens)
+    persist_oauth_tokens_raw(state.crypto()?, &state.store, account_id, tokens)
 }
 
 /// Encrypt and persist OAuth tokens without needing a full `AppState`.
@@ -549,9 +549,9 @@ pub(crate) fn decode_oauth_account_tokens(
     state: &AppState,
     account_id: &str,
 ) -> Result<DecodedOAuthTokens, PebbleError> {
-    let stored = read_stored_oauth_auth_data_raw(&state.crypto, &state.store, account_id)?
+    let stored = read_stored_oauth_auth_data_raw(state.crypto()?, &state.store, account_id)?
         .ok_or_else(|| PebbleError::Internal(format!("No auth data for account {account_id}")))?;
-    let proxy = effective_oauth_proxy(&state.crypto, &state.store, &stored)?;
+    let proxy = effective_oauth_proxy(state.crypto()?, &state.store, &stored)?;
     Ok(DecodedOAuthTokens {
         access_token: stored.access_token,
         refresh_token: stored.refresh_token,
@@ -644,11 +644,11 @@ pub(crate) async fn ensure_account_oauth_auth(
 ) -> Result<ResolvedOAuthAuth, PebbleError> {
     let account_lock = oauth_account_lock(&state.oauth_account_locks, account_id).await;
     let _account_guard = account_lock.lock().await;
-    let stored = read_stored_oauth_auth_data_raw(&state.crypto, &state.store, account_id)?
+    let stored = read_stored_oauth_auth_data_raw(state.crypto()?, &state.store, account_id)?
         .ok_or_else(|| {
             PebbleError::Internal(format!("No auth data found for account {account_id}"))
         })?;
-    let proxy = effective_oauth_proxy(&state.crypto, &state.store, &stored)?;
+    let proxy = effective_oauth_proxy(state.crypto()?, &state.store, &stored)?;
     let network = OAuthNetworkConfig {
         proxy: proxy.clone(),
     };
@@ -726,7 +726,7 @@ async fn complete_desktop_oauth_flow(
     let account_proxy = oauth_proxy_from_parts(proxy_host, proxy_port)?;
     let effective_proxy = resolve_effective_proxy(
         account_proxy.clone(),
-        super::network::get_global_proxy_raw(&state.crypto, &state.store)?,
+        super::network::get_global_proxy_raw(state.crypto()?, &state.store)?,
     );
     let network = OAuthNetworkConfig {
         proxy: effective_proxy,
@@ -801,7 +801,7 @@ async fn complete_desktop_oauth_flow(
             scopes: token_pair.scopes,
         };
         let stored = StoredOAuthAuthData::from_tokens(tokens, account_proxy);
-        persist_stored_oauth_auth_data_raw(&state.crypto, &state.store, &account.id, &stored)?;
+        persist_stored_oauth_auth_data_raw(state.crypto()?, &state.store, &account.id, &stored)?;
 
         // Store provider metadata in sync_state
         let slug = provider_slug(&account.provider).to_string();
@@ -835,7 +835,7 @@ pub async fn get_oauth_account_proxy_setting(
     account_id: String,
 ) -> std::result::Result<AccountProxySetting, PebbleError> {
     ensure_oauth_account_provider(&state, &account_id)?;
-    let stored = read_stored_oauth_auth_data_raw(&state.crypto, &state.store, &account_id)?
+    let stored = read_stored_oauth_auth_data_raw(state.crypto()?, &state.store, &account_id)?
         .ok_or_else(|| {
             PebbleError::Internal(format!("No auth data found for account {account_id}"))
         })?;
@@ -889,12 +889,12 @@ pub async fn update_oauth_account_proxy_setting(
     let _account_guard = account_lock.lock().await;
     ensure_oauth_account_provider(&state, &account_id)?;
     let setting = account_proxy_setting_from_parts(mode, proxy_host, proxy_port, "OAuth proxy")?;
-    let stored = read_stored_oauth_auth_data_raw(&state.crypto, &state.store, &account_id)?
+    let stored = read_stored_oauth_auth_data_raw(state.crypto()?, &state.store, &account_id)?
         .ok_or_else(|| {
             PebbleError::Internal(format!("No auth data found for account {account_id}"))
         })?
         .with_proxy_setting(setting);
-    persist_stored_oauth_auth_data_raw(&state.crypto, &state.store, &account_id, &stored)
+    persist_stored_oauth_auth_data_raw(state.crypto()?, &state.store, &account_id, &stored)
 }
 
 #[cfg(test)]

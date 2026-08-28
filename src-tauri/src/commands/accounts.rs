@@ -403,7 +403,7 @@ pub async fn add_account(
 
         // Encrypt credentials and store as auth_data
         let config_bytes = serialize_account_credentials(&credentials)?;
-        store_account_auth_data(&state.crypto, &state.store, &account.id, &config_bytes)?;
+        store_account_auth_data(state.crypto()?, &state.store, &account.id, &config_bytes)?;
 
         // Store non-secret metadata in sync_state
         let provider_slug = match &provider {
@@ -481,7 +481,7 @@ pub async fn update_account(
     // missing (first-time edit, or a legacy OAuth-only account moving to
     // IMAP), seed a blank template that the mutations below can fill in.
     let mut creds: AccountCredentials =
-        match load_account_auth_data(&state.crypto, &state.store, &account_id)? {
+        match load_account_auth_data(state.crypto()?, &state.store, &account_id)? {
             Some(decrypted) => deserialize_account_credentials(&decrypted)?,
             None => AccountCredentials {
                 proxy_mode: AccountProxyMode::Inherit,
@@ -592,7 +592,7 @@ pub async fn update_account(
         .update_account(&account_id, &email, &display_name, account_color.as_deref())?;
 
     let config_bytes = serialize_account_credentials(&creds)?;
-    store_account_auth_data(&state.crypto, &state.store, &account_id, &config_bytes)?;
+    store_account_auth_data(state.crypto()?, &state.store, &account_id, &config_bytes)?;
 
     crate::commands::s3_sync::request_s3_vault_push(&state);
     Ok(())
@@ -621,7 +621,7 @@ pub async fn get_account_proxy_setting(
         ));
     }
 
-    let Some(decrypted) = load_account_auth_data(&state.crypto, &state.store, &account_id)? else {
+    let Some(decrypted) = load_account_auth_data(state.crypto()?, &state.store, &account_id)? else {
         return Ok(AccountProxySetting {
             mode: AccountProxyMode::Inherit,
             proxy: None,
@@ -678,7 +678,7 @@ pub async fn update_account_proxy_setting(
     }
 
     let setting = account_proxy_setting_from_parts(mode, proxy_host, proxy_port, "Account proxy")?;
-    let Some(decrypted) = load_account_auth_data(&state.crypto, &state.store, &account_id)? else {
+    let Some(decrypted) = load_account_auth_data(state.crypto()?, &state.store, &account_id)? else {
         return Err(PebbleError::Internal(format!(
             "No auth data found for account {account_id}"
         )));
@@ -686,7 +686,7 @@ pub async fn update_account_proxy_setting(
     let mut credentials = deserialize_account_credentials(&decrypted)?;
     set_account_proxy_setting_on_credentials(&mut credentials, setting);
     let config_bytes = serialize_account_credentials(&credentials)?;
-    store_account_auth_data(&state.crypto, &state.store, &account_id, &config_bytes)?;
+    store_account_auth_data(state.crypto()?, &state.store, &account_id, &config_bytes)?;
     Ok(())
 }
 
@@ -763,7 +763,7 @@ pub async fn test_imap_connection(
     )?;
     let proxy = resolve_effective_proxy(
         requested_proxy,
-        get_global_proxy_raw(&state.crypto, &state.store)?,
+        get_global_proxy_raw(state.crypto()?, &state.store)?,
     )
     .map(mail_proxy_from_http);
     let password = request.password.unwrap_or_default();
@@ -807,7 +807,7 @@ pub async fn test_pop3_connection(
     )?;
     let proxy = resolve_effective_proxy(
         requested_proxy,
-        get_global_proxy_raw(&state.crypto, &state.store)?,
+        get_global_proxy_raw(state.crypto()?, &state.store)?,
     )
     .map(mail_proxy_from_http);
     let username = request.username.unwrap_or_default();
@@ -865,11 +865,11 @@ pub async fn test_account_connection(
     }
 
     if matches!(account.provider, ProviderType::Pop3) {
-        let decrypted = load_account_auth_data(&state.crypto, &state.store, &account_id)?
+        let decrypted = load_account_auth_data(state.crypto()?, &state.store, &account_id)?
             .ok_or_else(|| PebbleError::Internal("No auth data found".into()))?;
         let credentials = deserialize_account_credentials(&decrypted)?;
         let proxy = resolve_mail_proxy_from_mode(
-            &state.crypto,
+            state.crypto()?,
             &state.store,
             credentials.proxy_mode,
             credentials.imap.proxy.clone(),
@@ -886,11 +886,11 @@ pub async fn test_account_connection(
         return Pop3Provider::test_connection(&config).await;
     }
 
-    let decrypted = load_account_auth_data(&state.crypto, &state.store, &account_id)?
+    let decrypted = load_account_auth_data(state.crypto()?, &state.store, &account_id)?
         .ok_or_else(|| PebbleError::Internal("No auth data found".into()))?;
     let mut credentials = deserialize_account_credentials(&decrypted)?;
     credentials.imap.proxy = resolve_mail_proxy_from_mode(
-        &state.crypto,
+        state.crypto()?,
         &state.store,
         credentials.proxy_mode,
         credentials.imap.proxy.clone(),
@@ -931,7 +931,7 @@ pub async fn delete_account(
     };
 
     // 3. Remove all documents from search index
-    if let Err(e) = state.search.delete_by_account(&account_id) {
+    if let Err(e) = state.search()?.delete_by_account(&account_id) {
         tracing::warn!("Failed to clean search index for account {account_id}: {e}");
     }
 

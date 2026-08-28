@@ -69,7 +69,7 @@ fn decrypt_backup_secrets(
 fn collect_backup_secrets(state: &AppState) -> std::result::Result<BackupSecrets, PebbleError> {
     let mut account_auth = Vec::new();
     for account in state.store.list_accounts()? {
-        let Some(decrypted) = load_account_auth_data(&state.crypto, &state.store, &account.id)?
+        let Some(decrypted) = load_account_auth_data(state.crypto()?, &state.store, &account.id)?
         else {
             continue;
         };
@@ -166,7 +166,7 @@ fn prepare_restored_private_data(
                 account.account_id
             ))
         })?;
-        let encrypted = encrypt_account_auth_data(&state.crypto, &account.account_id, &auth_bytes)?;
+        let encrypted = encrypt_account_auth_data(state.crypto()?, &account.account_id, &auth_bytes)?;
         private_data.auth_data.push(RestoredAuthData {
             account_id: account.account_id,
             provider: account.provider,
@@ -378,14 +378,14 @@ pub fn save_auto_backup_config(
     auto_backup_interval_duration(config.interval_minutes)?;
     let json = serde_json::to_vec(&config)
         .map_err(|e| PebbleError::Internal(format!("Failed to serialize config: {e}")))?;
-    store_secure_user_data(&state.crypto, &state.store, AUTO_BACKUP_CONFIG_KEY, &json)
+    store_secure_user_data(state.crypto()?, &state.store, AUTO_BACKUP_CONFIG_KEY, &json)
 }
 
 #[tauri::command]
 pub fn load_auto_backup_config(
     state: State<'_, AppState>,
 ) -> std::result::Result<Option<AutoBackupConfig>, PebbleError> {
-    load_auto_backup_config_inner(&state.store, &state.crypto)
+    load_auto_backup_config_inner(&state.store, state.crypto()?)
 }
 
 fn load_auto_backup_config_inner(
@@ -421,7 +421,8 @@ pub async fn run_auto_backup_worker(app: tauri::AppHandle) {
         interval.tick().await;
 
         let state = app.state::<AppState>();
-        let config = match load_auto_backup_config_inner(&state.store, &state.crypto) {
+        let Ok(crypto) = state.crypto() else { continue };
+        let config = match load_auto_backup_config_inner(&state.store, crypto) {
             Ok(Some(c)) if c.enabled => c,
             Ok(_) => continue,
             Err(error) => {

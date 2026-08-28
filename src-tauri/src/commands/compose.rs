@@ -241,7 +241,7 @@ pub(crate) async fn send_imap_smtp_message(
     account: &Account,
     outgoing: &OutgoingMessage,
 ) -> std::result::Result<(), PebbleError> {
-    let smtp_config = load_smtp_config(&state.store, &state.crypto, &account.id)?;
+    let smtp_config = load_smtp_config(&state.store, state.crypto()?, &account.id)?;
     let sender = SmtpSender::new(
         smtp_config.host,
         smtp_config.port,
@@ -450,7 +450,7 @@ async fn prepare_send_transport(
             ))
         }
         ProviderType::Imap | ProviderType::Pop3 => {
-            let smtp_config = load_smtp_config(&state.store, &state.crypto, &account.id)?;
+            let smtp_config = load_smtp_config(&state.store, state.crypto()?, &account.id)?;
             Ok(PreparedSendTransport::Smtp(SmtpSender::new(
                 smtp_config.host,
                 smtp_config.port,

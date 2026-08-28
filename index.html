@@ -106,9 +106,26 @@
     </style>
     <script>
       window.__splashStart=Date.now();
+      window.__splashDismissed=false;
       // Apply saved theme immediately to avoid flash of wrong theme
       try{var t=localStorage.getItem('pebble-theme')||'light';var d=t==='system'?matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light':t;document.documentElement.setAttribute('data-theme',d)}catch(e){}
+      // Never leave the looping HTML splash on screen. If React never mounts
+      // (or Tauri setup blocks JS), force-remove after 4s and show the UI or
+      // a still-starting fallback.
+      window.setTimeout(function(){
+        if(window.__splashDismissed) return;
+        var splash=document.getElementById('splash');
+        if(!splash) return;
+        window.__splashDismissed=true;
+        splash.remove();
+        var style=document.getElementById('splash-style');
+        if(style) style.remove();
+        var root=document.getElementById('root');
+        var still=document.getElementById('still-starting');
+        if(still && root && !root.childElementCount){ still.hidden=false; }
+      }, 4000);
     </script>
+    <div id="still-starting" hidden style="position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:#1a1a1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:15px;">Starting…</div>
     <div id="splash">
       <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
         <path class="pebble-fill" d="M32 8C18 8 8 20 10 34c2 12 12 22 22 22s20-10 22-22C56 20 46 8 32 8z"/>

@@ -146,6 +146,100 @@ fn get_index_path(app_data: &std::path::Path) -> Result<PathBuf, Box<dyn std::er
     Ok(index_dir)
 }
 
+fn log_quick_check_result(result: std::result::Result<String, impl std::fmt::Display>) {
+    match result {
+        Ok(result) if result == "ok" => tracing::info!("Database integrity check passed"),
+        Ok(result) => tracing::warn!("Database integrity check warning: {}", result),
+        Err(e) => tracing::warn!("Database integrity check failed: {}", e),
+    }
+}
+
+fn run_background_reindex<R: Runtime>(
+    store: &pebble_store::Store,
+    search: &pebble_search::TantivySearch,
+    search_needs_reindex: bool,
+    app: &AppHandle<R>,
+) {
+    match commands::indexing::recover_pending_search_operations(store, search) {
+        Ok(recovered) if recovered > 0 => tracing::info!(
+            "Recovered {recovered} pending search operations from previous session"
+        ),
+        Ok(_) => {}
+        Err(error) => tracing::warn!(
+            "Search recovery did not commit; pending operations were retained: {error}"
+        ),
+    }
+
+    let needs_rebuild = if search_needs_reindex {
+        tracing::info!("Search index schema changed, rebuild required");
+        true
+    } else {
+        let idx_count = search.doc_count();
+        let db_count = store.count_all_messages().unwrap_or(0);
+        if idx_count == 0 && db_count > 0 {
+            tracing::info!("Search index empty but DB has {db_count} messages, rebuild required");
+            true
+        } else if idx_count > 0 && idx_count != db_count {
+            tracing::warn!(
+                "SQLite/Tantivy count mismatch (db={db_count}, index={idx_count}), rebuilding"
+            );
+            true
+        } else {
+            false
+        }
+    };
+
+    if needs_rebuild {
+        tracing::info!("Starting background search index rebuild...");
+        match commands::indexing::do_reindex(store, search) {
+            Ok(n) => {
+                tracing::info!("Background reindex complete: {n} messages indexed");
+                if let Err(error) = store.clear_all_search_pending() {
+                    tracing::warn!(
+                        "Search rebuild committed but recovery markers could not be cleared: {error}"
+                    );
+                }
+                let _ = app.emit("search:reindex-complete", n);
+            }
+            Err(e) => tracing::error!("Background reindex failed: {e}"),
+        }
+    }
+}
+
+fn spawn_post_reindex_workers(
+    app: AppHandle,
+    ready_handle: tauri::async_runtime::JoinHandle<()>,
+) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = ready_handle.await {
+            tracing::error!("Background reindex task join failed: {e}");
+        }
+        let app_for_sync = app.clone();
+        tauri::async_runtime::spawn(async move {
+            commands::sync_cmd::resume_all_syncs(app_for_sync).await;
+        });
+        let app_for_pending_ops = app.clone();
+        tauri::async_runtime::spawn(async move {
+            commands::pending_mail_ops::run_pending_mail_ops_worker(app_for_pending_ops).await;
+        });
+        // Desktop-only: Android S3 / WebDAV vault sync is Phase 3.
+        #[cfg(desktop)]
+        {
+            let app_for_s3 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                commands::cloud_sync::run_auto_backup_worker(app.clone()).await;
+            });
+            tauri::async_runtime::spawn(async move {
+                commands::s3_sync::run_s3_vault_worker(app_for_s3).await;
+            });
+        }
+        #[cfg(not(desktop))]
+        {
+            let _ = app;
+        }
+    });
+}
+
 fn restore_main_window<R: Runtime>(app: &AppHandle<R>) {
     commands::notifications::clear_attention_indicator(app);
     #[cfg(desktop)]
@@ -467,161 +561,167 @@ fn run_inner() {
                 "database opened and migrations complete",
             );
 
-            match store.quick_check() {
-                Ok(result) if result == "ok" => tracing::info!("Database integrity check passed"),
-                Ok(result) => tracing::warn!("Database integrity check warning: {}", result),
-                Err(e) => tracing::warn!("Database integrity check failed: {}", e),
-            }
-            log_startup_phase(startup_start, &mut startup_phase, "database quick check complete");
-
-            let index_path = get_index_path(&app_data)?;
-            tracing::info!("Search index path: {}", index_path.display());
-            let search = pebble_search::TantivySearch::open(&index_path).map_err(|e| {
-                surface_setup_error(format!("Failed to open the search index: {e}"))
-            })?;
-            let search_needs_reindex = search.needs_reindex();
-            tracing::info!("Search index initialized successfully");
-            log_startup_phase(startup_start, &mut startup_phase, "search index opened");
-
-            // The full `SELECT COUNT(*) FROM messages` consistency check used
-            // to run here and block the main window from appearing. It now
-            // runs inside the background reindex task below, so startup can
-            // proceed without waiting on a full-table scan.
-
-            let crypto = pebble_crypto::CryptoService::init().map_err(|e| {
-                surface_setup_error(format!(
-                    "Failed to initialize the device encryption key: {e}"
-                ))
-            })?;
-            tracing::info!("Crypto service initialized successfully");
-            log_startup_phase(startup_start, &mut startup_phase, "crypto service initialized");
-
             let attachments_dir = app_data.join("attachments");
             std::fs::create_dir_all(&attachments_dir)?;
             tracing::info!("Attachments directory: {}", attachments_dir.display());
             log_startup_phase(startup_start, &mut startup_phase, "attachments directory ready");
 
             let (snooze_stop_tx, snooze_stop_rx) = std::sync::mpsc::channel::<()>();
-            app.manage(AppState::new(store, search, crypto, snooze_stop_tx, attachments_dir));
-            log_startup_phase(startup_start, &mut startup_phase, "app state registered");
 
-            // Start snooze watcher on the Tauri async runtime
-            let state: tauri::State<AppState> = app.state();
-            let store_clone = state.store.clone();
-            let app_handle = app.handle().clone();
-            let app_for_deep_link = app_handle.clone();
-            app.listen(DEEP_LINK_NEW_URL_EVENT, move |event| {
-                let urls = mailto_urls_from_deep_link_payload(event.payload());
-                record_mailto_urls(&app_for_deep_link, urls);
-            });
-            record_mailto_urls(
-                &app_handle,
-                mailto_urls_from_args(&std::env::args().collect::<Vec<_>>()),
-            );
-            tauri::async_runtime::spawn(snooze_watcher::run_snooze_watcher(
-                store_clone,
-                app_handle.clone(),
-                snooze_stop_rx,
-            ));
+            #[cfg(not(target_os = "android"))]
+            {
+                log_quick_check_result(store.quick_check());
+                log_startup_phase(startup_start, &mut startup_phase, "database quick check complete");
 
-            // Decide whether to rebuild the search index, and do it in the
-            // background so startup never waits on the DB count query. The
-            // task itself performs the consistency check (comparing the
-            // index doc count to the live DB row count) — the main thread
-            // only needs the cheap schema-version flag.
-            let store_for_reindex = state.store.clone();
-            let search_for_reindex = state.search.clone();
-            let app_for_reindex = app_handle.clone();
-            let reindex_handle = tauri::async_runtime::spawn_blocking(move || {
-                // 1. Process any pending search ops left over from a previous crash.
-                match commands::indexing::recover_pending_search_operations(
-                    &store_for_reindex,
-                    &search_for_reindex,
-                ) {
-                    Ok(recovered) if recovered > 0 => tracing::info!(
-                        "Recovered {recovered} pending search operations from previous session"
-                    ),
-                    Ok(_) => {}
-                    Err(error) => tracing::warn!(
-                        "Search recovery did not commit; pending operations were retained: {error}"
-                    ),
-                }
+                let index_path = get_index_path(&app_data)?;
+                tracing::info!("Search index path: {}", index_path.display());
+                let search = pebble_search::TantivySearch::open(&index_path).map_err(|e| {
+                    surface_setup_error(format!("Failed to open the search index: {e}"))
+                })?;
+                let search_needs_reindex = search.needs_reindex();
+                tracing::info!("Search index initialized successfully");
+                log_startup_phase(startup_start, &mut startup_phase, "search index opened");
 
-                // 2. Full rebuild if schema changed or counts diverge.
-                let needs_rebuild = if search_needs_reindex {
-                    tracing::info!("Search index schema changed, rebuild required");
-                    true
-                } else {
-                    let idx_count = search_for_reindex.doc_count();
-                    let db_count = store_for_reindex.count_all_messages().unwrap_or(0);
-                    if idx_count == 0 && db_count > 0 {
-                        tracing::info!("Search index empty but DB has {db_count} messages, rebuild required");
-                        true
-                    } else if idx_count > 0 && idx_count != db_count {
-                        tracing::warn!(
-                            "SQLite/Tantivy count mismatch (db={db_count}, index={idx_count}), rebuilding"
-                        );
-                        true
-                    } else {
-                        false
-                    }
-                };
+                let crypto = pebble_crypto::CryptoService::init().map_err(|e| {
+                    surface_setup_error(format!(
+                        "Failed to initialize the device encryption key: {e}"
+                    ))
+                })?;
+                tracing::info!("Crypto service initialized successfully");
+                log_startup_phase(startup_start, &mut startup_phase, "crypto service initialized");
 
-                if needs_rebuild {
-                    tracing::info!("Starting background search index rebuild...");
-                    match commands::indexing::do_reindex(&store_for_reindex, &search_for_reindex) {
-                        Ok(n) => {
-                            tracing::info!("Background reindex complete: {n} messages indexed");
-                            if let Err(error) = store_for_reindex.clear_all_search_pending() {
-                                tracing::warn!(
-                                    "Search rebuild committed but recovery markers could not be cleared: {error}"
-                                );
+                app.manage(AppState::new(store, search, crypto, snooze_stop_tx, attachments_dir));
+                log_startup_phase(startup_start, &mut startup_phase, "app state registered");
+
+                let state: tauri::State<AppState> = app.state();
+                let store_clone = state.store.clone();
+                let app_handle = app.handle().clone();
+                let app_for_deep_link = app_handle.clone();
+                app.listen(DEEP_LINK_NEW_URL_EVENT, move |event| {
+                    let urls = mailto_urls_from_deep_link_payload(event.payload());
+                    record_mailto_urls(&app_for_deep_link, urls);
+                });
+                record_mailto_urls(
+                    &app_handle,
+                    mailto_urls_from_args(&std::env::args().collect::<Vec<_>>()),
+                );
+                tauri::async_runtime::spawn(snooze_watcher::run_snooze_watcher(
+                    store_clone,
+                    app_handle.clone(),
+                    snooze_stop_rx,
+                ));
+
+                let store_for_reindex = state.store.clone();
+                let search_for_reindex = state
+                    .search_arc()
+                    .expect("desktop setup initializes search before manage");
+                let app_for_reindex = app_handle.clone();
+                let reindex_handle = tauri::async_runtime::spawn_blocking(move || {
+                    run_background_reindex(
+                        &store_for_reindex,
+                        &search_for_reindex,
+                        search_needs_reindex,
+                        &app_for_reindex,
+                    );
+                });
+                spawn_post_reindex_workers(app_handle, reindex_handle);
+            }
+
+            #[cfg(target_os = "android")]
+            {
+                // Keep SQLite open on the critical path so list/inbox commands
+                // can run as soon as setup() returns. Integrity check, Tantivy,
+                // and Android Keystore stay in the background so the webview
+                // is not stuck on #splash waiting for them.
+                app.manage(AppState::new_deferred(
+                    store,
+                    snooze_stop_tx,
+                    attachments_dir,
+                ));
+                log_startup_phase(startup_start, &mut startup_phase, "app state registered");
+
+                let state: tauri::State<AppState> = app.state();
+                let store_clone = state.store.clone();
+                let app_handle = app.handle().clone();
+                let app_for_deep_link = app_handle.clone();
+                app.listen(DEEP_LINK_NEW_URL_EVENT, move |event| {
+                    let urls = mailto_urls_from_deep_link_payload(event.payload());
+                    record_mailto_urls(&app_for_deep_link, urls);
+                });
+                record_mailto_urls(
+                    &app_handle,
+                    mailto_urls_from_args(&std::env::args().collect::<Vec<_>>()),
+                );
+                tauri::async_runtime::spawn(snooze_watcher::run_snooze_watcher(
+                    store_clone,
+                    app_handle.clone(),
+                    snooze_stop_rx,
+                ));
+
+                let store_for_check = state.store.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    log_quick_check_result(store_for_check.quick_check());
+                });
+
+                let index_path = get_index_path(&app_data)?;
+                tracing::info!("Search index path: {}", index_path.display());
+                let store_for_reindex = state.store.clone();
+                let app_for_search = app_handle.clone();
+                let search_handle = tauri::async_runtime::spawn_blocking(move || {
+                    match pebble_search::TantivySearch::open(&index_path) {
+                        Ok(search) => {
+                            let search_needs_reindex = search.needs_reindex();
+                            tracing::info!("Search index initialized successfully");
+                            let state = app_for_search.state::<AppState>();
+                            state.set_search(search);
+                            match state.search_arc() {
+                                Ok(search) => run_background_reindex(
+                                    &store_for_reindex,
+                                    &search,
+                                    search_needs_reindex,
+                                    &app_for_search,
+                                ),
+                                Err(error) => tracing::error!(
+                                    "Search slot missing after background open: {error}"
+                                ),
                             }
-                            let _ = app_for_reindex.emit("search:reindex-complete", n);
                         }
-                        Err(e) => tracing::error!("Background reindex failed: {e}"),
+                        Err(e) => {
+                            let message = format!("Failed to open the search index: {e}");
+                            tracing::error!("[startup] {message}");
+                            let _ = android_open::write_startup_log(&message);
+                            app_for_search.state::<AppState>().set_search_error(message);
+                        }
                     }
-                }
-            });
+                });
 
-            // Start the long-lived workers only after the background reindex
-            // finishes. do_reindex calls clear_index() then rebuilds from a DB
-            // snapshot; running sync workers concurrently could index a freshly
-            // stored message whose document is then wiped and missed by the
-            // snapshot, leaving it permanently unsearchable. On a normal launch
-            // the reindex task only does the cheap pending-recovery + count
-            // check (no rebuild), so this ordering adds latency only on
-            // schema-upgrade launches.
-            let app_for_workers = app_handle.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = reindex_handle.await {
-                    tracing::error!("Background reindex task join failed: {e}");
-                }
-                let app_for_sync = app_for_workers.clone();
-                tauri::async_runtime::spawn(async move {
-                    commands::sync_cmd::resume_all_syncs(app_for_sync).await;
+                let app_for_crypto = app_handle.clone();
+                let crypto_handle = tauri::async_runtime::spawn_blocking(move || {
+                    match pebble_crypto::CryptoService::init() {
+                        Ok(crypto) => {
+                            tracing::info!("Crypto service initialized successfully");
+                            app_for_crypto.state::<AppState>().set_crypto(crypto);
+                        }
+                        Err(e) => {
+                            let message =
+                                format!("Failed to initialize the device encryption key: {e}");
+                            tracing::error!("[startup] {message}");
+                            let _ = android_open::write_startup_log(&message);
+                            app_for_crypto.state::<AppState>().set_crypto_error(message);
+                        }
+                    }
                 });
-                let app_for_pending_ops = app_for_workers.clone();
-                tauri::async_runtime::spawn(async move {
-                    commands::pending_mail_ops::run_pending_mail_ops_worker(app_for_pending_ops)
-                        .await;
+
+                let ready_handle = tauri::async_runtime::spawn(async move {
+                    if let Err(e) = search_handle.await {
+                        tracing::error!("Android search init join failed: {e}");
+                    }
+                    if let Err(e) = crypto_handle.await {
+                        tracing::error!("Android crypto init join failed: {e}");
+                    }
                 });
-                // Desktop-only: Android S3 / WebDAV vault sync is Phase 3.
-                #[cfg(desktop)]
-                {
-                    let app_for_s3 = app_for_workers.clone();
-                    tauri::async_runtime::spawn(async move {
-                        commands::cloud_sync::run_auto_backup_worker(app_for_workers).await;
-                    });
-                    tauri::async_runtime::spawn(async move {
-                        commands::s3_sync::run_s3_vault_worker(app_for_s3).await;
-                    });
-                }
-                #[cfg(not(desktop))]
-                {
-                    let _ = app_for_workers;
-                }
-            });
+                spawn_post_reindex_workers(app_handle, ready_handle);
+            }
             log_startup_phase(startup_start, &mut startup_phase, "background workers scheduled");
             tracing::info!(
                 "[startup] tauri setup complete: {}ms total",
@@ -833,6 +933,8 @@ mod startup_timing_tests {
         assert!(lib.contains("Failed to open the SQLite database"));
         assert!(lib.contains("Failed to open the search index"));
         assert!(lib.contains("Failed to initialize the device encryption key"));
+        assert!(lib.contains("new_deferred"));
+        assert!(lib.contains("set_crypto_error"));
         assert!(lib.contains("show_startup_error"));
         assert!(
             !lib.contains(".expect(\"error while running tauri application\")"),

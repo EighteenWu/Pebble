@@ -36,7 +36,7 @@ pub async fn update_message_flags(
 ) -> std::result::Result<(), PebbleError> {
     // 1. Resolve DB state off the Tokio runtime before attempting remote writeback.
     let store = state.store.clone();
-    let crypto = state.crypto.clone();
+    let crypto = state.crypto_arc()?;
     let msg_id = message_id.clone();
 
     let writeback_info =

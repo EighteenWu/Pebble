@@ -54,7 +54,7 @@ pub(crate) fn decrypt_config(
     state: &AppState,
     stored: &str,
 ) -> std::result::Result<String, PebbleError> {
-    decrypt_config_with_store(&state.crypto, &state.store, stored)
+    decrypt_config_with_store(state.crypto()?, &state.store, stored)
 }
 
 fn decrypt_config_with_store(
@@ -86,7 +86,7 @@ pub(crate) fn encrypt_config(
     state: &AppState,
     plaintext: &str,
 ) -> std::result::Result<String, PebbleError> {
-    encrypt_config_with_crypto(&state.crypto, plaintext)
+    encrypt_config_with_crypto(state.crypto()?, plaintext)
 }
 
 fn encrypt_config_with_crypto(
@@ -126,7 +126,7 @@ pub async fn translate_text(
 
     validate_provider_config(&provider_config)?;
 
-    let proxy = get_global_proxy_raw(&state.crypto, &state.store)?;
+    let proxy = get_global_proxy_raw(state.crypto()?, &state.store)?;
 
     TranslateService::translate_with_proxy(
         &provider_config,
@@ -226,7 +226,7 @@ pub async fn test_translate_connection(
     // Validate endpoint URLs before making any requests
     validate_provider_config(&provider_config)?;
 
-    let proxy = get_global_proxy_raw(&state.crypto, &state.store)?;
+    let proxy = get_global_proxy_raw(state.crypto()?, &state.store)?;
     let result = TranslateService::translate_with_proxy(
         &provider_config,
         proxy.as_ref(),

@@ -137,17 +137,17 @@ fn load_runtime_inner(
 fn save_runtime(state: &AppState, runtime: &S3SyncRuntime) -> std::result::Result<(), PebbleError> {
     let json = serde_json::to_vec(runtime)
         .map_err(|e| PebbleError::Internal(format!("Failed to serialize S3 sync state: {e}")))?;
-    store_secure_user_data(&state.crypto, &state.store, S3_SYNC_STATE_KEY, &json)
+    store_secure_user_data(state.crypto()?, &state.store, S3_SYNC_STATE_KEY, &json)
 }
 
 fn device_id(state: &AppState) -> std::result::Result<String, PebbleError> {
-    if let Some(existing) = load_secure_user_data(&state.crypto, &state.store, S3_DEVICE_ID_KEY)? {
+    if let Some(existing) = load_secure_user_data(state.crypto()?, &state.store, S3_DEVICE_ID_KEY)? {
         return String::from_utf8(existing).map_err(|e| {
             PebbleError::Internal(format!("Stored S3 device id was not valid UTF-8: {e}"))
         });
     }
     let id = new_id();
-    store_secure_user_data(&state.crypto, &state.store, S3_DEVICE_ID_KEY, id.as_bytes())?;
+    store_secure_user_data(state.crypto()?, &state.store, S3_DEVICE_ID_KEY, id.as_bytes())?;
     Ok(id)
 }
 
@@ -224,7 +224,7 @@ async fn push_vault(
     let backend = S3Backend::new(config.backend_config())?;
     let vault_key = vault_object_key(&config.prefix)?;
     let meta_key = vault_meta_object_key(&config.prefix)?;
-    let mut runtime = load_runtime_inner(&state.store, &state.crypto)?;
+    let mut runtime = load_runtime_inner(&state.store, state.crypto()?)?;
     let device = device_id(state)?;
     let cloud_head = backend.head(&vault_key).await?;
     let cloud_meta = read_cloud_meta(&backend, config).await?;
@@ -378,7 +378,7 @@ async fn pull_vault(
         .as_ref()
         .map(|(meta, _)| meta.updated_at)
         .unwrap_or_else(now_timestamp);
-    let mut runtime = load_runtime_inner(&state.store, &state.crypto)?;
+    let mut runtime = load_runtime_inner(&state.store, state.crypto()?)?;
     runtime.last_sync_at = Some(updated_at);
     runtime.last_revision = Some(revision);
     runtime.last_checksum = Some(checksum);
@@ -399,7 +399,7 @@ async fn startup_reconcile(
     state: &AppState,
     config: &S3SyncConfig,
 ) -> std::result::Result<VaultSyncResult, PebbleError> {
-    let runtime = load_runtime_inner(&state.store, &state.crypto)?;
+    let runtime = load_runtime_inner(&state.store, state.crypto()?)?;
     let backend = S3Backend::new(config.backend_config())?;
     let cloud_meta = read_cloud_meta(&backend, config).await?;
     let has_accounts = !state.store.list_accounts()?.is_empty();
@@ -436,9 +436,10 @@ async fn startup_reconcile(
 }
 
 pub fn request_s3_vault_push(state: &AppState) {
-    if let Ok(Some(config)) = load_config_inner(&state.store, &state.crypto) {
+    let Ok(crypto) = state.crypto() else { return };
+    if let Ok(Some(config)) = load_config_inner(&state.store, crypto) {
         if !config.passphrase.trim().is_empty() && config.validate_credentials().is_ok() {
-            if let Ok(mut runtime) = load_runtime_inner(&state.store, &state.crypto) {
+            if let Ok(mut runtime) = load_runtime_inner(&state.store, crypto) {
                 runtime.dirty = true;
                 let _ = save_runtime(state, &runtime);
             }
@@ -470,14 +471,14 @@ pub fn save_s3_sync_config(
     }
     let json = serde_json::to_vec(&config)
         .map_err(|e| PebbleError::Internal(format!("Failed to serialize S3 sync config: {e}")))?;
-    store_secure_user_data(&state.crypto, &state.store, S3_SYNC_CONFIG_KEY, &json)
+    store_secure_user_data(state.crypto()?, &state.store, S3_SYNC_CONFIG_KEY, &json)
 }
 
 #[tauri::command]
 pub fn load_s3_sync_config(
     state: State<'_, AppState>,
 ) -> std::result::Result<Option<S3SyncConfig>, PebbleError> {
-    load_config_inner(&state.store, &state.crypto)
+    load_config_inner(&state.store, state.crypto()?)
 }
 
 #[tauri::command]
@@ -490,7 +491,7 @@ pub fn delete_s3_sync_config(state: State<'_, AppState>) -> std::result::Result<
 pub fn get_s3_sync_status(
     state: State<'_, AppState>,
 ) -> std::result::Result<S3SyncStatus, PebbleError> {
-    let runtime = load_runtime_inner(&state.store, &state.crypto)?;
+    let runtime = load_runtime_inner(&state.store, state.crypto()?)?;
     Ok(S3SyncStatus {
         last_sync_at: runtime.last_sync_at,
         revision: runtime.last_revision,
@@ -504,7 +505,7 @@ pub async fn sync_s3_vault(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> std::result::Result<VaultSyncResult, PebbleError> {
-    let config = load_config_inner(&state.store, &state.crypto)?.ok_or_else(|| {
+    let config = load_config_inner(&state.store, state.crypto()?)?.ok_or_else(|| {
         PebbleError::Validation("Save S3-compatible sync settings before syncing".to_string())
     })?;
     let result = push_vault(&state, &config, false).await?;
@@ -520,7 +521,7 @@ pub async fn restore_s3_vault(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> std::result::Result<VaultSyncResult, PebbleError> {
-    let config = load_config_inner(&state.store, &state.crypto)?.ok_or_else(|| {
+    let config = load_config_inner(&state.store, state.crypto()?)?.ok_or_else(|| {
         PebbleError::Validation("Save S3-compatible sync settings before restoring".to_string())
     })?;
     let result = pull_vault(&state, &config).await?;
@@ -536,7 +537,7 @@ pub async fn resolve_s3_vault_conflict(
     state: State<'_, AppState>,
     choice: ConflictChoice,
 ) -> std::result::Result<VaultSyncResult, PebbleError> {
-    let config = load_config_inner(&state.store, &state.crypto)?.ok_or_else(|| {
+    let config = load_config_inner(&state.store, state.crypto()?)?.ok_or_else(|| {
         PebbleError::Validation(
             "Save S3-compatible sync settings before resolving a conflict".to_string(),
         )
@@ -562,7 +563,8 @@ pub async fn run_s3_vault_worker(app: AppHandle) {
     tokio::time::sleep(STARTUP_PULL_DELAY).await;
     {
         let state = app.state::<AppState>();
-        match load_config_inner(&state.store, &state.crypto) {
+        if let Ok(crypto) = state.crypto() {
+        match load_config_inner(&state.store, crypto) {
             Ok(Some(config)) if !config.passphrase.trim().is_empty() => {
                 match startup_reconcile(&state, &config).await {
                     Ok(result) => {
@@ -593,6 +595,7 @@ pub async fn run_s3_vault_worker(app: AppHandle) {
             Ok(_) => {}
             Err(error) => tracing::warn!("[s3-vault] invalid stored config: {error}"),
         }
+        }
     }
 
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
@@ -613,7 +616,8 @@ pub async fn run_s3_vault_worker(app: AppHandle) {
                     }
                 }
                 let state = app.state::<AppState>();
-                match load_config_inner(&state.store, &state.crypto) {
+                let Ok(crypto) = state.crypto() else { continue };
+                match load_config_inner(&state.store, crypto) {
                     Ok(Some(config)) if !config.passphrase.trim().is_empty() => {
                         match push_vault(&state, &config, false).await {
                             Ok(result) => {
@@ -631,7 +635,8 @@ pub async fn run_s3_vault_worker(app: AppHandle) {
             }
             _ = interval.tick() => {
                 let state = app.state::<AppState>();
-                let Ok(Some(config)) = load_config_inner(&state.store, &state.crypto) else {
+                let Ok(crypto) = state.crypto() else { continue };
+                let Ok(Some(config)) = load_config_inner(&state.store, crypto) else {
                     continue;
                 };
                 if !config.enabled || config.passphrase.trim().is_empty() {

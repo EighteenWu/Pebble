@@ -793,6 +793,12 @@
     "to": "收件人：",
     "cc": "抄送："
   },
+  "startup": {
+    "stillStarting": "正在启动…",
+    "cryptoStarting": "加密服务还在启动，请稍后再试。",
+    "cryptoFailed": "无法解锁设备加密。请重试，或重启应用。",
+    "searchStarting": "搜索还在启动，请稍后再试。"
+  },
   "errorBoundary": {
     "title": "出了点问题",
     "description": "请重试或刷新应用。",

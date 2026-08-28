@@ -196,7 +196,7 @@ pub(crate) fn account_proxy_mode_from_auth_value(value: &serde_json::Value) -> A
 pub async fn get_global_proxy(
     state: State<'_, AppState>,
 ) -> Result<Option<HttpProxyConfig>, PebbleError> {
-    get_global_proxy_raw(&state.crypto, &state.store)
+    get_global_proxy_raw(state.crypto()?, &state.store)
 }
 
 #[tauri::command]
@@ -206,7 +206,7 @@ pub async fn update_global_proxy(
     proxy_port: Option<u16>,
 ) -> Result<(), PebbleError> {
     let proxy = proxy_config_from_parts(proxy_host, proxy_port, "Global proxy")?;
-    set_global_proxy_raw(&state.crypto, &state.store, proxy)
+    set_global_proxy_raw(state.crypto()?, &state.store, proxy)
 }
 
 #[cfg(test)]
