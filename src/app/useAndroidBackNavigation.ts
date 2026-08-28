@@ -5,7 +5,7 @@ import { useComposeStore } from "@/stores/compose.store";
 import { useMailStore } from "@/stores/mail.store";
 import { useUIStore } from "@/stores/ui.store";
 
-function consumeAndroidBack(): boolean {
+export function consumeAndroidBack(): boolean {
   const ui = useUIStore.getState();
   const mail = useMailStore.getState();
 
@@ -16,6 +16,12 @@ function consumeAndroidBack(): boolean {
 
   if (ui.activeView === "settings" && ui.settingsSectionOpen) {
     ui.closeSettingsSection();
+    return true;
+  }
+
+  if (ui.activeView === "settings") {
+    ui.closeSettingsSection();
+    ui.setActiveView("inbox");
     return true;
   }
 

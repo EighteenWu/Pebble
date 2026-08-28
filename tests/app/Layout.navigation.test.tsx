@@ -209,4 +209,18 @@ describe("Layout navigation", () => {
     expect(useUIStore.getState().settingsSectionOpen).toBe(false);
     expect(useUIStore.getState().activeView).toBe("settings");
   });
+
+  it("replaces the Android header gear with Back on the settings list", () => {
+    mocks.android = true;
+    useUIStore.setState({ activeView: "settings", settingsSectionOpen: false });
+    render(<Layout />);
+
+    const header = document.querySelector(".mobile-topbar") as HTMLElement;
+    expect(within(header).queryByRole("button", { name: "Settings" })).toBeNull();
+    fireEvent.click(within(header).getByRole("button", { name: "Back" }));
+    expect(useUIStore.getState().activeView).toBe("inbox");
+
+    fireEvent.click(within(header).getByRole("button", { name: "Sidebar" }));
+    expect(useUIStore.getState().mobileNavOpen).toBe(true);
+  });
 });
